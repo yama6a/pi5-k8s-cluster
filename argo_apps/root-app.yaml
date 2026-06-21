@@ -14,7 +14,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/yama6a/pi5-k8s-cluster.git
+    repoURL: https://github.com/yama6a/pi5-k8s-cluster
     targetRevision: HEAD
     path: argo_apps/apps
     directory:
