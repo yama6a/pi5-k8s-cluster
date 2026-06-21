@@ -1,0 +1,97 @@
+# raspi-cluster — project conventions
+
+A 3× Raspberry Pi 5 Kubernetes cluster on Talos, networked by Cilium, delivered by ArgoCD.
+The repo is a **numbered, ordered runbook**: you execute the steps in sequence to stand the cluster up.
+
+## Repository layout
+
+Each stage is a numbered pair:
+
+- `NN_name/` — the executable bits (scripts, generated config).
+- `NN_name.md` — the narrative + **decision record** for that step.
+
+Run them in order: `01_hardware` → `02_raspi_eeprom` → `03_operating_system` → `04_networking` → `05_gitops`.
+Multi-phase steps use letter sub-phases (e.g. `03a_talos_image_builder` … `03e_nic_hardening`).
+
+**The `.md` holds the "why"; the scripts stay thin.** When documenting a decision or trade-off, it goes in the step's
+`.md`, not in code comments and not here. This file is only for conventions that span the whole repo.
+
+## Bootstrap scripts
+
+All step scripts follow one house style — match it when adding a new one:
+
+- **UX contract:** colored `say` / `die` / `ok` / `bad` helpers, `PASS`/`FAIL` counters, a trailing
+  `=============== summary: N passed, M failed ===============` line, and a **non-zero exit on any failure**.
+- **Idempotent / re-run-safe.** Every bootstrap script must be safe to run again (e.g. `helm upgrade --install`,
+  re-checking state before acting). Re-running after a partial failure is the normal recovery path.
+- **`# ---- knobs ----` block** near the top: all tunables are `${VAR:-default}` env overrides, grouped together.
+- **`set -uo pipefail` baseline** — deliberately *not* `-e` in the PASS/FAIL scripts, so checks accumulate failures
+  and report a full summary rather than aborting on the first. (One-shot scripts that should abort early use `-euo`.)
+- **Native vs. dockerized tooling:** talos/image work (`03a–03e`) runs its tooling (talosctl, cross-builds) **in
+  Docker**; cluster-apply scripts (`04`, `05`) use **native `helm` + `kubectl` and hard-fail if either is missing**.
+  Rule of thumb: Talos/image → Docker; apply-to-cluster → native.
+- **`DANGEROUS_` prefix** for destructive scripts (e.g. `DANGEROUS_reset_talos_cluster.sh`) — anything that wipes or
+  resets state carries the prefix so it can't be run by reflex.
+
+### Cluster credentials location
+
+`03_operating_system/talos-cluster/` is the canonical output dir for `talosconfig` + `kubeconfig` (written by `03d`).
+Downstream scripts set `KUBECONFIG` from there via their `OUTDIR` knob — read from this path, don't scatter copies.
+
+## Helm wrapper-chart pattern (single source of truth)
+
+Every app ArgoCD manages is a **thin wrapper Helm chart** under `argo_apps/charts/NN_name/`:
+
+- `Chart.yaml` pins the **upstream chart as a dependency** (the version lives here, nowhere else).
+- `values.yaml` holds **all** configuration.
+- `Chart.lock` pins the resolved dependency — **must be committed** (ArgoCD's repo-server runs `helm dependency build`,
+  which requires it; a missing/stale lock breaks sync).
+
+The imperative bootstrap script **and** ArgoCD consume the **same chart, release name, and namespace**, so when Argo
+adopts the running release it sees it in-sync — no pod churn, no fighting. **No versions or values are ever hardcoded in
+a script.** To change config, edit the chart's `values.yaml`; to upgrade, bump the dependency in `Chart.yaml` and refresh
+the lock.
+
+## ArgoCD apps: naming & sync-wave convention
+
+Everything ArgoCD manages lives under `argo_apps/`:
+
+- `argo_apps/apps/NN_name.yaml` — one `Application` per app (the root app recurses this dir).
+- `argo_apps/charts/NN_name/` — the wrapper Helm chart that Application points at.
+
+**The `NN` prefix IS the app's sync-wave number.** Keep three things in agreement for every app:
+
+1. the `apps/NN_name.yaml` filename prefix,
+2. the `charts/NN_name/` dir prefix,
+3. the `argocd.argoproj.io/sync-wave: "N"` annotation in the manifest.
+
+So a one-glance `ls argo_apps/apps/` reads in deploy order. The prefix is technically mutable (it's just the wave) but we
+treat it as stable — don't renumber casually.
+
+### How to choose a wave
+
+`sync-wave` orders how the root app **creates child Application objects**: lower runs first, and the root waits for a wave
+to be **Synced + Healthy** before creating the next. Pick the lowest wave that sits *after* everything the app depends on.
+
+Current waves:
+
+| Wave | App      | Why                                                          |
+|------|----------|-------------------------------------------------------------|
+| `0`  | cilium   | the CNI — underpins all pod networking, so it goes first.    |
+| `1`  | argocd   | needs the CNI; adopts the already-running self-managed Argo. |
+| `2`+ | future   | reconcile after the platform (CNI + engine) is in place.    |
+
+### The one hard rule
+
+**Never put a manual-sync (or otherwise perpetually-`OutOfSync`) app at an earlier wave than apps that depend on it.** A
+manual app starts OutOfSync and its wave never clears, so the root never creates later-wave apps — self-management stalls.
+
+This is why **Cilium auto-syncs** despite being the app that can cut the cluster (and Argo) off its own network. To keep
+that safe it auto-syncs **without `selfHeal` and with `prune: false`**:
+
+- `selfHeal: false` → an out-of-band break-glass fix (`04_cilium.sh`) is **never auto-reverted** mid-incident.
+- `prune: false` → a removed CRD is **never cascade-deleted**.
+- Price: a bad Cilium change *pushed to git* applies unattended — mind your pushes, and **after any break-glass commit the
+  fix back to git** (otherwise its app sits OutOfSync at wave 0 and blocks later waves).
+
+See `05_gitops.md` ("sync-wave convention") and `04_networking.md` (circular-dependency caveat) for the full reasoning.
