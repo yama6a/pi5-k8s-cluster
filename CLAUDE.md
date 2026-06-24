@@ -75,11 +75,14 @@ to be **Synced + Healthy** before creating the next. Pick the lowest wave that s
 
 Current waves:
 
-| Wave | App      | Why                                                          |
-|------|----------|-------------------------------------------------------------|
-| `0`  | cilium   | the CNI — underpins all pod networking, so it goes first.    |
-| `1`  | argocd   | needs the CNI; adopts the already-running self-managed Argo. |
-| `2`+ | future   | reconcile after the platform (CNI + engine) is in place.    |
+| Wave | App                                          | Why                                                                        |
+|------|----------------------------------------------|----------------------------------------------------------------------------|
+| `0`  | cilium                                       | the CNI — underpins all pod networking, so it goes first.                  |
+| `1`  | argocd, envoy-gateway                        | need the CNI; argocd adopts itself, envoy-gateway owns the Gateway API CRDs (before cert-manager) + the `eg` class. |
+| `2`  | cert-manager, sealed-secrets, longhorn, nic-keeper | independent leaves after the platform (CNI + engine) is in place.    |
+| `3`  | gateway                                      | the shared Gateway + ClusterIssuers (needs the `eg` class + cert-manager). |
+| `4`  | google-sso                                   | SecurityPolicies + callback hosts (needs the gateway + sealed-secrets).    |
+| `5`  | gateway-test                                 | demo apps (after the gateway AND the SSO policies).                        |
 
 ### The one hard rule
 
