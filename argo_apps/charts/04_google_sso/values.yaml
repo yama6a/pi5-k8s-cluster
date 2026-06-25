@@ -46,8 +46,13 @@ ssoDomains:
   - domain: pontiki.app
     issuer: letsencrypt-prod
     allowlist:
-      - theyama6a@gmail.com
+      - yassin.samoila@gmail.com
   - domain: yama.casa
     issuer: letsencrypt-staging
     allowlist:
-      - timlange555@gmail.com
+      - yassin.samoil@gmail.com
+      - lavinia.samoila@gmail.com
+      - kostas.theocharis@live.de
+      - Kostas.theocharis@live.de
+      - satschock1996@yahoo.gr
+      - sad.shock.is.happy@gmail.com
