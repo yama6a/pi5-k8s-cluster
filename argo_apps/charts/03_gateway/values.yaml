@@ -58,13 +58,14 @@ httpsHosts:
   - name: google-sso-yama-casa
     hostname: google-sso.yama.casa
     tlsSecretName: google-sso-yama-casa-tls
-  # monitoring UIs, fronted by Google SSO (07_monitoring_ingress)
-  - name: prometheus
-    hostname: prometheus.pontiki.app
-    tlsSecretName: prometheus-tls
-  - name: alertmanager
-    hostname: alertmanager.pontiki.app
-    tlsSecretName: alertmanager-tls
+  # monitoring UIs, fronted by Google SSO (07_monitoring_ingress) — VictoriaMetrics vmui, VictoriaLogs UI
+  # and Grafana (replaced the retired Prometheus/Alertmanager UIs).
+  - name: vmui
+    hostname: vmui.pontiki.app
+    tlsSecretName: vmui-tls
+  - name: vlogs
+    hostname: vlogs.pontiki.app
+    tlsSecretName: vlogs-tls
   - name: grafana
     hostname: grafana.pontiki.app
     tlsSecretName: grafana-tls
