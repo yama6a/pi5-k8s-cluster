@@ -65,3 +65,6 @@ httpsHosts:
   - name: alertmanager
     hostname: alertmanager.pontiki.app
     tlsSecretName: alertmanager-tls
+  - name: grafana
+    hostname: grafana.pontiki.app
+    tlsSecretName: grafana-tls
