@@ -47,7 +47,7 @@ oidc:
 # domain's HTTP-01 path is validated, because the login flow redirects the browser THROUGH it.
 ssoDomains:
   - domain: pontiki.app
-    issuer: letsencrypt-prod
+    issuer: letsencrypt-staging
     allowlist:
       - yassin.samoila@gmail.com
   - domain: yama.casa
