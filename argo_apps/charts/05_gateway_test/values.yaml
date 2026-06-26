@@ -18,7 +18,7 @@ apps:
     host: gateway-test.pontiki.app
     listenerName: gateway-test
     tlsSecretName: gateway-test-tls
-    issuer: letsencrypt-prod
+    issuer: letsencrypt-staging
     sso: ""
   # The protected demo — labelled sso:pontiki.app, so the pontiki.app SecurityPolicy (04_google_sso)
   # gates it behind Google login + the pontiki.app allowlist. Auth bounces via google-sso.pontiki.app.
@@ -26,5 +26,5 @@ apps:
     host: gateway-test-sso.pontiki.app
     listenerName: gateway-test-sso
     tlsSecretName: gateway-test-sso-tls
-    issuer: letsencrypt-prod
+    issuer: letsencrypt-staging
     sso: "pontiki.app"
