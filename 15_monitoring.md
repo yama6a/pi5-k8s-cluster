@@ -11,7 +11,7 @@
 ```
 node-exporter (DS, all 3 nodes) ┐                         ┌─ VMSingle  (1×, 50Gi Longhorn PVC, 180d)  ── vmui  ─┐
 kube-state-metrics ┐            │  VMServiceScrape/        │                                                    │
-cilium/hubble, argocd, cert-mgr,│  VMPodScrape (converted │  vmagent (Deploy, selectAllByDefault) ─scrapes─────┤  shared Gateway
+cilium/hubble, argocd, cert-mgr,│  VMPodScrape (converted │  vmagent (Deploy, selectAllByDefault) ─scrapes─────┤  per-UI Gateways
 longhorn, sealed-secrets ───────┼─ from ServiceMonitors)  │                                                    ├─ + Google SSO
 control-plane (etcd/sched/kcm) ─┘  (cluster-wide)         └─ VLSingle (1×, 30Gi Longhorn PVC, 60d)  ── vlogs ──┤  (sso: pontiki.app)
                                                               ▲                                                 │
@@ -335,8 +335,8 @@ Grafana now lands as its own wave-7 app — see **[16_grafana.md](16_grafana.md)
 `grafana/grafana` chart, the sidecar ingests the datasource/dashboard ConfigMaps this stack emits
 (`grafana_datasource: "1"` / `grafana_dashboard: "1"`, search-all-namespaces). No persistence; Grafana's
 own login is **off** (anonymous Admin) and the only gate is the Google SSO front door, reusing
-`07_monitoring_ingress` for the `grafana.pontiki.app` host (cert + `sso`-labelled HTTPRoute) and a
-`grafana` listener on `03_gateway`.
+`07_monitoring_ingress` for the `grafana.pontiki.app` host (cert + `sso`-labelled HTTPRoute) and
+its **own** `grafana` Gateway (a single `:443` listener, folded onto the one Envoy via `mergeGateways`).
 
 ## Apply / verify
 
