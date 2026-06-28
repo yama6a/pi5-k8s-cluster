@@ -99,7 +99,7 @@ Current platform waves:
 |------|--------------------------------------------------------|----------------------------------------------------------------------------|
 | `0`  | cilium, prometheus-operator-crds, vm-operator-crds     | the CNI — underpins all pod networking — plus the monitoring CRDs everything else's ServiceMonitors land on. |
 | `1`  | argocd, envoy-gateway, vm-operator                     | need the CNI; argocd adopts itself, envoy-gateway owns the Gateway API CRDs (before cert-manager) + the `eg` class. |
-| `2`  | cert-manager, sealed-secrets, longhorn, nic-keeper, cnpg-operator | independent leaves after the platform (CNI + engine) is in place. |
+| `2`  | cert-manager, sealed-secrets, longhorn, local-path-provisioner, nic-keeper, cnpg-operator | independent leaves after the platform (CNI + engine) is in place. |
 | `3`  | gateway                                                | the shared Gateway + ClusterIssuers (needs the `eg` class + cert-manager). |
 | `4`  | google-sso                                             | SecurityPolicies + callback hosts (needs the gateway + sealed-secrets).    |
 | `6`  | argocd-ingress                                         | exposes argocd via the gateway.                                            |
