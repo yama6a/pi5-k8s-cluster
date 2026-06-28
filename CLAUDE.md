@@ -40,7 +40,8 @@ Downstream scripts set `KUBECONFIG` from there via their `OUTDIR` knob — read 
 
 ## Helm wrapper-chart pattern (single source of truth)
 
-Every app ArgoCD manages is a **thin wrapper Helm chart** under `argo_apps/charts/NN_name/`:
+Every app ArgoCD manages is a **thin wrapper Helm chart** under its tree's `charts/` dir —
+`argo_apps/platform/charts/NN_name/` for platform, `argo_apps/workloads/charts/name/` for workloads:
 
 - `Chart.yaml` pins the **upstream chart as a dependency** (the version lives here, nowhere else).
 - `values.yaml` holds **all** configuration.
@@ -52,37 +53,60 @@ adopts the running release it sees it in-sync — no pod churn, no fighting. **N
 a script.** To change config, edit the chart's `values.yaml`; to upgrade, bump the dependency in `Chart.yaml` and refresh
 the lock.
 
-## ArgoCD apps: naming & sync-wave convention
+## ArgoCD apps: two trees + naming & sync-wave convention
 
-Everything ArgoCD manages lives under `argo_apps/`:
+Everything ArgoCD manages lives under `argo_apps/`, split into a **platform** tree and a **workloads** tree, gated by a
+**root-of-roots**:
 
-- `argo_apps/apps/NN_name.yaml` — one `Application` per app (the root app recurses this dir).
-- `argo_apps/charts/NN_name/` — the wrapper Helm chart that Application points at.
+```
+argo_apps/
+  root.yaml                 # root-of-roots — applied once by 05_argocd.sh; recurses roots/
+  roots/
+    0_platform.yaml         #   Application "platform"  (sync-wave 0) -> recurses platform/apps
+    1_workloads.yaml        #   Application "workloads" (sync-wave 1) -> recurses workloads/apps
+  platform/{apps,charts}/   # CNI, operators, CRDs, storage, gateway, SSO, monitoring
+  workloads/{apps,charts}/  # the actual apps (cnpg-cluster, gateway-test)
+```
 
-**The `NN` prefix IS the app's sync-wave number.** Keep three things in agreement for every app:
+The root-of-roots creates the **platform** root first and waits for it to be **Healthy** (which aggregates every
+platform app's health) before creating the **workloads** root. So workloads never reconcile against missing
+CRDs/namespaces on a cold boot — the platform→workloads ordering is enforced **once, here**.
 
-1. the `apps/NN_name.yaml` filename prefix,
-2. the `charts/NN_name/` dir prefix,
+**Platform** apps keep the numbered convention. **The `NN` prefix IS the app's sync-wave number** — keep three things in
+agreement:
+
+1. the `platform/apps/NN_name.yaml` filename prefix,
+2. the `platform/charts/NN_name/` dir prefix,
 3. the `argocd.argoproj.io/sync-wave: "N"` annotation in the manifest.
 
-So a one-glance `ls argo_apps/apps/` reads in deploy order. The prefix is technically mutable (it's just the wave) but we
-treat it as stable — don't renumber casually.
+So a one-glance `ls argo_apps/platform/apps/` reads in deploy order. The prefix is technically mutable (it's just the
+wave) but we treat it as stable — don't renumber casually.
 
-### How to choose a wave
+**Workloads** apps are deliberately **un-numbered and wave-less** (`workloads/apps/name.yaml`, `workloads/charts/name/`):
+the whole platform is already Healthy by the time the workloads root is created, so they have nothing left to order among
+themselves and all reconcile **in parallel**. Don't add a `sync-wave` annotation or an `NN_` prefix to a workload — if a
+workload genuinely depends on another workload, it belongs in platform instead.
 
-`sync-wave` orders how the root app **creates child Application objects**: lower runs first, and the root waits for a wave
-to be **Synced + Healthy** before creating the next. Pick the lowest wave that sits *after* everything the app depends on.
+### How to choose a wave (platform only)
 
-Current waves:
+`sync-wave` orders how the **platform** root creates its child Application objects: lower runs first, and the root waits
+for a wave to be **Synced + Healthy** before creating the next. Pick the lowest wave that sits *after* everything the app
+depends on. (Workloads don't use waves — see above.)
 
-| Wave | App                                          | Why                                                                        |
-|------|----------------------------------------------|----------------------------------------------------------------------------|
-| `0`  | cilium                                       | the CNI — underpins all pod networking, so it goes first.                  |
-| `1`  | argocd, envoy-gateway                        | need the CNI; argocd adopts itself, envoy-gateway owns the Gateway API CRDs (before cert-manager) + the `eg` class. |
-| `2`  | cert-manager, sealed-secrets, longhorn, nic-keeper | independent leaves after the platform (CNI + engine) is in place.    |
-| `3`  | gateway                                      | the shared Gateway + ClusterIssuers (needs the `eg` class + cert-manager). |
-| `4`  | google-sso                                   | SecurityPolicies + callback hosts (needs the gateway + sealed-secrets).    |
-| `5`  | gateway-test                                 | demo apps (after the gateway AND the SSO policies).                        |
+Current platform waves:
+
+| Wave | App                                                    | Why                                                                        |
+|------|--------------------------------------------------------|----------------------------------------------------------------------------|
+| `0`  | cilium, prometheus-operator-crds, vm-operator-crds     | the CNI — underpins all pod networking — plus the monitoring CRDs everything else's ServiceMonitors land on. |
+| `1`  | argocd, envoy-gateway, vm-operator                     | need the CNI; argocd adopts itself, envoy-gateway owns the Gateway API CRDs (before cert-manager) + the `eg` class. |
+| `2`  | cert-manager, sealed-secrets, longhorn, nic-keeper, cnpg-operator | independent leaves after the platform (CNI + engine) is in place. |
+| `3`  | gateway                                                | the shared Gateway + ClusterIssuers (needs the `eg` class + cert-manager). |
+| `4`  | google-sso                                             | SecurityPolicies + callback hosts (needs the gateway + sealed-secrets).    |
+| `6`  | argocd-ingress                                         | exposes argocd via the gateway.                                            |
+| `7`  | grafana, victoria-logs, vm-k8s-stack, monitoring-ingress | the monitoring stack + its ingress.                                      |
+
+**Workloads** (`gateway-test`, `cnpg-cluster`) carry **no wave** — they live in the workloads tree, which the root-of-roots
+only creates after the entire platform above is Healthy.
 
 ### The one hard rule
 
