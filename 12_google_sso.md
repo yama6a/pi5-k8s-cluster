@@ -4,7 +4,7 @@ Add an **optional** auth layer: Google login + an **email allowlist**, attached 
 scaling to **many apps across several domains** without per-host config. Protect a host = put
 `sso: "<its-domain>"` on its `HTTPRoute`. Each domain funnels through **one shared callback host**
 (`google-sso.<domain>`), so Google needs exactly **one redirect URI per domain** — never per app.
-Proven on `gateway-test-sso.pontiki.app` (protected) vs `gateway-test.pontiki.app` (open).
+Proven on `sample-workload-sso.pontiki.app` (protected) vs `sample-workload.pontiki.app` (open).
 
 Delivered (mostly) by ArgoCD:
 
@@ -109,10 +109,10 @@ Checks:
 
 - `kubectl -n gateway get securitypolicy` → `google-sso-<slug>` per domain, `Accepted=True` (not Accepted
   ⇒ the client-secret Secret is missing — run the script + push).
-- Browse `https://gateway-test-sso.pontiki.app/` (the protected demo from [gateway-test](13_gateway_test.md))
-  → Google login → bounce through `google-sso.pontiki.app` → an allowlisted account reaches whoami; a
+- Browse `https://sample-workload-sso.pontiki.app/` (the protected demo from [sample-workload](13_sample_workload.md))
+  → Google login → bounce through `google-sso.pontiki.app` → an allowlisted account reaches the sample app; a
   non-listed one is denied.
-- `https://gateway-test.pontiki.app/` → whoami, no login (the open control).
+- `https://sample-workload.pontiki.app/` → the sample app, no login (the open control).
 - If login loops or the allowlist never matches: confirm the **ID-token cookie name** lines up between
   `oidc.cookieNames.idToken` and `jwt.extractFrom.cookies` (the riskiest wiring), and that each domain's
   callback URI is registered exactly.
