@@ -65,7 +65,7 @@ argo_apps/
     0_platform.yaml         #   Application "platform"  (sync-wave 0) -> recurses platform/apps
     1_workloads.yaml        #   Application "workloads" (sync-wave 1) -> recurses workloads/apps
   platform/{apps,charts}/   # CNI, operators, CRDs, storage, gateway, SSO, monitoring
-  workloads/{apps,charts}/  # the actual apps (cnpg-cluster, gateway-test)
+  workloads/{apps,charts}/  # the actual apps (sample-workload)
 ```
 
 The root-of-roots creates the **platform** root first and waits for it to be **Healthy** (which aggregates every
@@ -105,8 +105,8 @@ Current platform waves:
 | `6`  | argocd-ingress                                         | exposes argocd via the gateway.                                            |
 | `7`  | grafana, victoria-logs, vm-k8s-stack, monitoring-ingress | the monitoring stack + its ingress.                                      |
 
-**Workloads** (`gateway-test`, `cnpg-cluster`) carry **no wave** — they live in the workloads tree, which the root-of-roots
-only creates after the entire platform above is Healthy.
+**Workloads** (`sample-workload` — the sample app + its CNPG Postgres + its open/SSO ingress) carry **no wave** — they live
+in the workloads tree, which the root-of-roots only creates after the entire platform above is Healthy.
 
 ### The one hard rule
 
