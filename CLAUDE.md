@@ -103,7 +103,7 @@ Current platform waves:
 | `3`  | gateway                                                | the shared Gateway + ClusterIssuers (needs the `eg` class + cert-manager). |
 | `4`  | google-sso                                             | SecurityPolicies + callback hosts (needs the gateway + sealed-secrets).    |
 | `6`  | argocd-ingress                                         | exposes argocd via the gateway.                                            |
-| `7`  | grafana, victoria-logs, vm-k8s-stack, monitoring-ingress | the monitoring stack + its ingress.                                      |
+| `7`  | grafana, victoria-logs, vm-k8s-stack                   | the monitoring stack — each app now ships its **own** SSO ingress edge (Gateway + Certificate + HTTPRoute + ReferenceGrant) beside the Service it fronts. |
 
 **Workloads** (`sample-workload` — the sample app + its CNPG Postgres + its open/SSO ingress) carry **no wave** — they live
 in the workloads tree, which the root-of-roots only creates after the entire platform above is Healthy.
