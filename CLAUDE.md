@@ -20,11 +20,14 @@ Multi-phase steps use letter sub-phases (e.g. `03a_talos_image_builder` … `03e
 
 All step scripts follow one house style — match it when adding a new one:
 
-- **UX contract:** colored `say` / `die` / `ok` / `bad` helpers, `PASS`/`FAIL` counters, a trailing
-  `=============== summary: N passed, M failed ===============` line, and a **non-zero exit on any failure**.
+- **UX contract:** colored `say` / `die` / `warn` / `ok` / `bad` helpers, `PASS`/`FAIL` counters, and a trailing
+  `summary` line (`=============== summary: N passed, M failed ===============`), with a **non-zero exit on any
+  failure**. These are **not redefined per script** — they come from `lib/common.sh` (see below).
 - **Idempotent / re-run-safe.** Every bootstrap script must be safe to run again (e.g. `helm upgrade --install`,
   re-checking state before acting). Re-running after a partial failure is the normal recovery path.
-- **`# ---- knobs ----` block** near the top: all tunables are `${VAR:-default}` env overrides, grouped together.
+- **`# ---- knobs ----` block** near the top: script-local tunables are `${VAR:-default}` env overrides, grouped
+  together. **Shared** values (versions, node topology, namespaces, domains, …) instead live in
+  `lib/config.sh` — see "Shared library & config" below.
 - **`set -uo pipefail` baseline** — deliberately *not* `-e` in the PASS/FAIL scripts, so checks accumulate failures
   and report a full summary rather than aborting on the first. (One-shot scripts that should abort early use `-euo`.)
 - **Native vs. dockerized tooling:** talos/image work (`03a–03e`) runs its tooling (talosctl, cross-builds) **in
@@ -33,10 +36,27 @@ All step scripts follow one house style — match it when adding a new one:
 - **`DANGEROUS_` prefix** for destructive scripts (e.g. `DANGEROUS_reset_talos_cluster.sh`) — anything that wipes or
   resets state carries the prefix so it can't be run by reflex.
 
+### Shared library & config
+
+Two repo-root files back every script, so helpers and values each live in exactly one place:
+
+- **`lib/common.sh`** — sourced near the top of every script (`source "${SCRIPT_DIR}/../lib/common.sh"`, or
+  `${SCRIPT_DIR}/lib/common.sh` for repo-root scripts). It self-locates the repo root, sources `lib/config.sh`, and
+  provides: the `say`/`die`/`warn` + `ok`/`bad`/`summary` output helpers; `require <tools…>` (preflight — dies with an
+  install hint); `CLUSTER_DIR` + `use_kubeconfig` / `assert_api` (the 03d talos-cluster credentials); a dockerized
+  `talosctl()`; and `seal_secret <name> <ns> <key> <value> <out>` (used by 12/15/16). It **never sets shell options** —
+  each script keeps its own `set` line.
+- **`lib/config.sh`** — the single source of truth for the repo's **configurable** knobs/values plus the few values
+  shared across scripts (assignments only; every knob keeps its `${VAR:-default}` env-override form). Build-machinery
+  internals used by a single script — registry/builder names, the gmake path, the staged-image filename, a step's own
+  check expectations — live in **that script**, not here. It replaced the former per-folder `config.sh` / `03_config.sh`
+  files.
+
 ### Cluster credentials location
 
 `03_operating_system/talos-cluster/` is the canonical output dir for `talosconfig` + `kubeconfig` (written by `03d`).
-Downstream scripts set `KUBECONFIG` from there via their `OUTDIR` knob — read from this path, don't scatter copies.
+Downstream scripts reach it via `lib/common.sh`'s `CLUSTER_DIR` constant + `use_kubeconfig` helper (which exports
+`KUBECONFIG` from there) — read from this path, don't scatter copies.
 
 ## Helm wrapper-chart pattern (single source of truth)
 
