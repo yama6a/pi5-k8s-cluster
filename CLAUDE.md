@@ -57,8 +57,8 @@ Helpers and values each live in exactly one place — the library, plus a gitign
   and edit. Personal/network values (IPs, domains, emails, GHCR user, repo URL) are fake placeholders in the template;
   the version/digest/identifier recipe is real. Build-machinery internals used by a single script — registry/builder
   names, the gmake path, the staged-image filename, a step's own check expectations — live in **that script**, not here.
-  This `.env` + derivations replaced the former `lib/config.sh` (itself a merge of the per-folder `config.sh` /
-  `03_config.sh` files).
+  This `.env` + derivations replaced the former `lib/config.sh` (itself a merge of the per-folder
+  `config.sh` / `03_config.sh` files).
 
 ### Cluster credentials location
 
