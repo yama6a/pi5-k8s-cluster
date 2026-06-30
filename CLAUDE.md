@@ -25,9 +25,11 @@ All step scripts follow one house style — match it when adding a new one:
   failure**. These are **not redefined per script** — they come from `lib/common.sh` (see below).
 - **Idempotent / re-run-safe.** Every bootstrap script must be safe to run again (e.g. `helm upgrade --install`,
   re-checking state before acting). Re-running after a partial failure is the normal recovery path.
-- **`# ---- knobs ----` block** near the top: script-local tunables are `${VAR:-default}` env overrides, grouped
-  together. **Shared** values (versions, node topology, namespaces, domains, …) instead live in
-  `lib/config.sh` — see "Shared library & config" below.
+- **`# ---- knobs ----` block** near the top: script-local tunables are **plain hardcoded assignments** — scripts take
+  **no `${VAR:-default}` env-overridable knobs**; to change a value, edit it. They're grouped together. **Shared** values
+  (versions, node topology, namespaces, domains, …) instead live in the gitignored `.env` (template `.env.example`) —
+  see "Shared library & config" below. The sole runtime-injected value is a **secret** (ArgoCD's `GIT_TOKEN`), which is
+  **prompted**, never an env knob.
 - **`set -uo pipefail` baseline** — deliberately *not* `-e` in the PASS/FAIL scripts, so checks accumulate failures
   and report a full summary rather than aborting on the first. (One-shot scripts that should abort early use `-euo`.)
 - **Native vs. dockerized tooling:** talos/image work (`03a–03e`) runs its tooling (talosctl, cross-builds) **in
@@ -38,19 +40,25 @@ All step scripts follow one house style — match it when adding a new one:
 
 ### Shared library & config
 
-Two repo-root files back every script, so helpers and values each live in exactly one place:
+Helpers and values each live in exactly one place — the library, plus a gitignored `.env` (with a committed template):
 
 - **`lib/common.sh`** — sourced near the top of every script (`source "${SCRIPT_DIR}/../lib/common.sh"`, or
-  `${SCRIPT_DIR}/lib/common.sh` for repo-root scripts). It self-locates the repo root, sources `lib/config.sh`, and
-  provides: the `say`/`die`/`warn` + `ok`/`bad`/`summary` output helpers; `require <tools…>` (preflight — dies with an
-  install hint); `CLUSTER_DIR` + `use_kubeconfig` / `assert_api` (the 03d talos-cluster credentials); a dockerized
-  `talosctl()`; and `seal_secret <name> <ns> <key> <value> <out>` (used by 12/15/16). It **never sets shell options** —
-  each script keeps its own `set` line.
-- **`lib/config.sh`** — the single source of truth for the repo's **configurable** knobs/values plus the few values
-  shared across scripts (assignments only; every knob keeps its `${VAR:-default}` env-override form). Build-machinery
-  internals used by a single script — registry/builder names, the gmake path, the staged-image filename, a step's own
-  check expectations — live in **that script**, not here. It replaced the former per-folder `config.sh` / `03_config.sh`
-  files.
+  `${SCRIPT_DIR}/lib/common.sh` for repo-root scripts). It self-locates the repo root, **loads the gitignored `.env`**
+  (dies with a `cp .env.example .env` hint if it's missing), **derives** the values that can't live in a flat `.env`
+  (the `CLUSTER_NODES[]` array + `NODES` IP list, `IFACE`, `INSTALL_DISK`, the `*_VERSION` aliases, and the
+  `BUILD_KEY`/`BUILD_DIR`/`OUT_DIR` build-cache paths), and provides: the `say`/`die`/`warn` + `ok`/`bad`/`summary`
+  output helpers; `require <tools…>` (preflight — dies with an install hint); `CLUSTER_DIR` + `use_kubeconfig` /
+  `assert_api` (the 03d talos-cluster credentials); a dockerized `talosctl()`; and
+  `seal_secret <name> <ns> <key> <value> <out>` (used by 12/15/16). It **never sets shell options** — each script keeps
+  its own `set` line.
+- **`.env`** (repo root, **gitignored**) — the single source of truth for the repo's **configurable** scalar values
+  (versions, node topology, domains, namespaces, …). Plain `KEY=value` only — no logic, arrays, or command
+  substitution (those are derived in `lib/common.sh`). **`.env.example`** is the committed template: copy it to `.env`
+  and edit. Personal/network values (IPs, domains, emails, GHCR user, repo URL) are fake placeholders in the template;
+  the version/digest/identifier recipe is real. Build-machinery internals used by a single script — registry/builder
+  names, the gmake path, the staged-image filename, a step's own check expectations — live in **that script**, not here.
+  This `.env` + derivations replaced the former `lib/config.sh` (itself a merge of the per-folder `config.sh` /
+  `03_config.sh` files).
 
 ### Cluster credentials location
 
