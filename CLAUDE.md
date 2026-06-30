@@ -16,6 +16,11 @@ Multi-phase steps use letter sub-phases (e.g. `03a_talos_image_builder` … `03e
 **The `.md` holds the "why"; the scripts stay thin.** When documenting a decision or trade-off, it goes in the step's
 `.md`, not in code comments and not here. This file is only for conventions that span the whole repo.
 
+**Always record the reason for a non-obvious setting or decision.** Any value, flag, or knob whose purpose isn't
+self-evident gets a short "why" next to it — the step's `.md` for narrative decisions, or an inline comment for a
+config/`values.yaml` setting (see the existing comments in the wrapper charts' `values.yaml` for the expected style).
+A future reader should never have to guess why a non-default value is what it is.
+
 ## Bootstrap scripts
 
 All step scripts follow one house style — match it when adding a new one:
