@@ -33,8 +33,10 @@ All step scripts follow one house style, match it when adding a new one:
 - `# ---- knobs ----` block near the top: script-local tunables are plain hardcoded assignments, grouped together.
   Scripts take no `${VAR:-default}` env-overridable knobs; to change a value, edit it. Shared values (versions, node
   topology, namespaces, domains, ...) live in the gitignored `.env` (template `.env.example`) instead, see "Shared
-  library & config" below. The sole runtime-injected value is a secret (ArgoCD's `GIT_TOKEN`), which is prompted,
-  never an env knob.
+  library & config" below. Secrets (tokens, passwords, OAuth client id/secret) live in that same gitignored `.env`
+  and are read from it, never prompted at runtime; `lib/common.sh` defaults each to empty so an older `.env` missing
+  a key doesn't trip `set -u`. Leaving a secret empty skips the feature it enables (see each key's `.env.example`
+  comment).
 - `set -uo pipefail` baseline, deliberately not `-e` in the PASS/FAIL scripts, so checks accumulate failures
   and report a full summary rather than aborting on the first. (One-shot scripts that should abort early use `-euo`.)
 - Native vs. dockerized tooling: talos/image work (`03a-03e`) runs its tooling (talosctl, cross-builds) in
@@ -57,11 +59,13 @@ Helpers and values each live in exactly one place: the library, plus a gitignore
   `seal_secret <name> <ns> <key> <value> <out>` (used by 07/09). It never sets shell options; each script keeps
   its own `set` line.
 - `.env` (repo root, gitignored) is the single source of truth for the repo's configurable scalar values
-  (versions, node topology, domains, namespaces, ...). Plain `KEY=value` only, no logic, arrays, or command
-  substitution (those are derived in `lib/common.sh`). `.env.example` is the committed template: copy it to `.env`
-  and edit. Personal/network values (IPs, domains, emails, GHCR user, repo URL) are fake placeholders in the template;
-  the version/digest/identifier recipe is real. Build-machinery internals used by a single script (registry/builder
-  names, the gmake path, the staged-image filename, a step's own check expectations) live in that script, not here.
+  (versions, node topology, domains, namespaces, ...) **and its secrets** (tokens, passwords, OAuth client
+  id/secret, in a dedicated section). Plain `KEY=value` only, no logic, arrays, or command substitution (those are
+  derived in `lib/common.sh`). `.env.example` is the committed template: copy it to `.env` and edit. Personal/network
+  values (IPs, domains, emails, GHCR user, repo URL) are fake placeholders in the template, and every secret is an
+  **empty** placeholder there (never a real value); the version/digest/identifier recipe is real. Build-machinery
+  internals used by a single script (registry/builder names, the gmake path, the staged-image filename, a step's own
+  check expectations) live in that script, not here.
 
 ### Cluster credentials location
 
