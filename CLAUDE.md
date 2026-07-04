@@ -88,23 +88,36 @@ adopts the running release it sees it in-sync: no pod churn, no fighting. No ver
 a script. To change config, edit the chart's `values.yaml`; to upgrade, bump the dependency in `Chart.yaml` and refresh
 the lock.
 
-### Shared library chart (`argo_apps/_lib/`)
+### Shared charts (`argo_apps/_lib/`)
 
-Templates duplicated across many charts live in ONE `type: library` chart under `argo_apps/_lib/` (the sole
-exception to "charts live under each tree's `charts/`" — it belongs to neither tree because both consume it). The
-first is `argo_apps/_lib/ingress-edge/`, which renders the ingress edge (per host a Gateway + HTTPRoute +
-ReferenceGrant, one multi-SAN Certificate per ingress) for a list of ingresses; the platform-ingress chart, each
-workload chart, and `04_google_sso` (its callback hosts) all consume it. It renders NO SSO — Google-SSO is applied
-centrally per domain by `04_google_sso` (one SecurityPolicy per domain with per-host allowlists). Convention for a
-library + its consumers:
+Charts consumed as a dependency by other charts (rather than by ArgoCD directly) live under `argo_apps/_lib/`
+(the sole exception to "charts live under each tree's `charts/`" — they belong to neither tree because charts in
+both trees consume them). Two live here:
 
-- The library is `type: library`, pins no upstream, ships no `Chart.lock` (it renders nothing itself; its
-  `values.yaml` holds the shared defaults every consumer inherits — merged under the dependency-name key, e.g.
+- `argo_apps/_lib/ingress-edge/` (`type: library`) — renders the ingress edge (per host a Gateway + HTTPRoute +
+  ReferenceGrant, one multi-SAN Certificate per ingress) for a list of ingresses; the platform-ingress chart, each
+  workload chart, and `04_google_sso` (its callback hosts) all consume it. It renders NO SSO — Google-SSO is applied
+  centrally per domain by `04_google_sso` (one SecurityPolicy per domain with per-host allowlists).
+- `argo_apps/_lib/pg-cluster/` (`type: application`) — the curated CNPG Postgres wrapper: pins the upstream
+  `cnpg/cluster` chart and pre-bakes all its boilerplate, exposing a workload only the REQUIRED knobs
+  (`type`/`instances`/`resources`) + a few defaulted ones. Consumed by each Postgres-backed workload
+  (`sample_workload`).
+
+Convention for a shared chart + its consumers:
+
+- A **`type: library`** chart (ingress-edge) pins no upstream and ships no `Chart.lock` (it renders nothing itself;
+  its `values.yaml` holds the shared defaults every consumer inherits — merged under the dependency-name key, e.g.
   `ingress-edge`, the repo's usual "config under the dependency name" convention).
-- A consumer declares it as a **local `file://` dependency** (`repository: "file://../../../_lib/<name>"`), commits
-  the resulting `Chart.lock` (run `helm dependency update`), and gitignores `charts/*.tgz`. ArgoCD's repo-server runs
-  `helm dependency build`, which resolves the relative path inside the repo checkout — so the lock MUST be committed.
-- A consumer's whole template is often one line: `{{ include "ingress-edge.render" . }}`; all config is values.
+- A **`type: application`** shared chart (pg-cluster) is the deliberate deviation: because it must pin a real
+  upstream dependency it can't be a library, so it DOES ship a committed `Chart.lock` AND commits its vendored
+  `charts/*.tgz` (overriding the usual tgz gitignore) — a `file://` consumer's `helm dependency build` won't fetch
+  this transitive REMOTE dependency over the network, so it has to travel in git. See its `.gitignore` for the why.
+- A consumer declares either as a **local `file://` dependency** (`repository: "file://../../../_lib/<name>"`),
+  commits the resulting `Chart.lock` (run `helm dependency update`), and gitignores its own `charts/*.tgz`. ArgoCD's
+  repo-server runs `helm dependency build`, which resolves the relative path inside the repo checkout — so the lock
+  MUST be committed.
+- A consumer's whole template is often one line (`{{ include "ingress-edge.render" . }}`); config is all values
+  (pg-cluster renders via its dependency, so a consumer needs no template for it at all — just the values block).
 
 ## ArgoCD apps: two trees + naming & sync-wave convention
 

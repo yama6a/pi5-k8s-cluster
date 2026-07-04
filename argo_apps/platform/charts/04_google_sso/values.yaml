@@ -29,12 +29,17 @@ domains:
     issuer: letsencrypt-staging   # callback cert issuer (letsencrypt-staging | letsencrypt-prod)
     hosts:
       - host: argocd.pontiki.app
-        allowlist: [yassin.samoila@gmail.com]
+        allowlist:
+          - yassin.samoila@gmail.com
       - host: grafana.pontiki.app
-        allowlist: [yassin.samoila@gmail.com]
+        allowlist:
+          - yassin.samoila@gmail.com
       - host: vmui.pontiki.app
-        allowlist: [yassin.samoila@gmail.com]
+        allowlist:
+          - yassin.samoila@gmail.com
       - host: vlogs.pontiki.app
-        allowlist: [yassin.samoila@gmail.com]
+        allowlist:
+          - yassin.samoila@gmail.com
       - host: sample-workload-sso.pontiki.app
-        allowlist: [yassin.samoila@gmail.com]
+        allowlist:
+          - yassin.samoila@gmail.com
