@@ -88,6 +88,23 @@ adopts the running release it sees it in-sync: no pod churn, no fighting. No ver
 a script. To change config, edit the chart's `values.yaml`; to upgrade, bump the dependency in `Chart.yaml` and refresh
 the lock.
 
+### Shared library chart (`argo_apps/_lib/`)
+
+Templates duplicated across many charts live in ONE `type: library` chart under `argo_apps/_lib/` (the sole
+exception to "charts live under each tree's `charts/`" — it belongs to neither tree because both consume it). The
+first is `argo_apps/_lib/ingress-edge/`, which renders the whole ingress edge (per host a Gateway + HTTPRoute +
+ReferenceGrant, one multi-SAN Certificate per ingress, + an optional per-ingress SSO SecurityPolicy) for a list of
+ingresses; the platform-ingress chart, each workload chart, and `04_google_sso` (the SSO callback hosts) all
+consume it. Convention for a library + its consumers:
+
+- The library is `type: library`, pins no upstream, ships no `Chart.lock` (it renders nothing itself; its
+  `values.yaml` holds the shared defaults every consumer inherits — merged under the dependency-name key, e.g.
+  `ingress-edge`, the repo's usual "config under the dependency name" convention).
+- A consumer declares it as a **local `file://` dependency** (`repository: "file://../../../_lib/<name>"`), commits
+  the resulting `Chart.lock` (run `helm dependency update`), and gitignores `charts/*.tgz`. ArgoCD's repo-server runs
+  `helm dependency build`, which resolves the relative path inside the repo checkout — so the lock MUST be committed.
+- A consumer's whole template is often one line: `{{ include "ingress-edge.render" . }}`; all config is values.
+
 ## ArgoCD apps: two trees + naming & sync-wave convention
 
 Everything ArgoCD manages lives under `argo_apps/`, split into a platform tree and a workloads tree, gated by a
@@ -99,7 +116,8 @@ argo_apps/
   roots/
     0_platform.yaml         #   Application "platform"  (sync-wave 0) -> recurses platform/apps
     1_workloads.yaml        #   Application "workloads" (sync-wave 1) -> recurses workloads/apps
-  platform/{apps,charts}/   # CNI, operators, CRDs, storage, gateway, SSO, monitoring
+  _lib/ingress-edge/        # shared type:library chart: the ingress edge (consumed by both trees + 04_google_sso)
+  platform/{apps,charts}/   # CNI, operators, CRDs, storage, gateway, SSO, monitoring, platform-ingress
   workloads/{apps,charts}/  # the actual apps (sample-workload)
 ```
 
@@ -135,13 +153,19 @@ Current platform waves:
 | `0`  | cilium, prometheus-operator-crds, vm-operator-crds     | the CNI (underpins all pod networking), plus the monitoring CRDs everything else's ServiceMonitors land on. |
 | `1`  | argocd, envoy-gateway, vm-operator                     | need the CNI; argocd adopts itself, envoy-gateway owns the Gateway API CRDs (before cert-manager) + the `eg` class. |
 | `2`  | cert-manager, sealed-secrets, longhorn, local-path-provisioner, nic-keeper, cnpg-operator | independent leaves after the platform (CNI + engine) is in place. |
-| `3`  | gateway                                                | the shared Gateway + ClusterIssuers (needs the `eg` class + cert-manager). |
-| `4`  | google-sso                                             | SecurityPolicies + callback hosts (needs the gateway + sealed-secrets).    |
-| `6`  | argocd-ingress                                         | exposes argocd via the gateway.                                            |
-| `7`  | grafana, victoria-logs, vm-k8s-stack                   | the monitoring stack; each app ships its own SSO ingress edge (Gateway + Certificate + HTTPRoute + ReferenceGrant) beside the Service it fronts. |
+| `3`  | gateway                                                | the shared :80 Gateway + ClusterIssuers (needs the `eg` class + cert-manager). |
+| `4`  | google-sso                                             | the shared OIDC callback hosts + sealed OAuth client secret (needs the gateway + sealed-secrets). |
+| `7`  | grafana, victoria-logs, vm-k8s-stack                   | the monitoring stack (workloads only now); their UIs are exposed by the platform-ingress app at wave 8. |
+| `8`  | platform-ingress                                       | the ONE platform ingress: every platform UI's (argocd/grafana/vmui/vlogs) Gateway + HTTPRoute + ReferenceGrant, one shared multi-SAN Certificate, + the shared SSO SecurityPolicy. Last so all backends (argocd wave 1, monitoring wave 7) exist and the SSO callback + secret (wave 4) are up. |
+
+Every ingress edge (per host a Gateway + HTTPRoute + ReferenceGrant, one multi-SAN Certificate per ingress, +
+an optional per-ingress SSO SecurityPolicy) is rendered by ONE shared Helm library chart,
+`argo_apps/_lib/ingress-edge/` (see the wrapper-chart section). The platform-ingress app and each workload chart
+consume it; the callback hosts in `04_google_sso` too.
 
 Workloads (`sample-workload`, the sample app + its CNPG Postgres + its open/SSO ingress) carry no wave; they live
-in the workloads tree, which the root-of-roots only creates after the entire platform above is Healthy.
+in the workloads tree, which the root-of-roots only creates after the entire platform above is Healthy. A workload's
+ingress (rendered by the same library) carries its OWN SSO allowlist, independent of the platform ingress.
 
 ### Cross-cutting app conventions (stated here once, not repeated per app doc)
 
@@ -159,7 +183,8 @@ in the workloads tree, which the root-of-roots only creates after the entire pla
 - **Runbook doc number ≠ sync-wave number.** The top-level `NN_name.md` prefix is *runbook step order*; the
   `argo_apps/**` `NN_` prefix is the *sync-wave*. The two are independent: one doc can cover several argo apps
   at different waves — e.g. `07_ingress.md` documents argo apps `01_envoy_gateway` (wave 1), `02_cert_manager`
-  (wave 2), `03_gateway` (wave 3) and `04_google_sso` (wave 4). Never renumber under `argo_apps/` to match a doc.
+  (wave 2), `03_gateway` (wave 3), `04_google_sso` (wave 4) and `08_platform_ingress` (wave 8). Never renumber
+  under `argo_apps/` to match a doc.
 
 ### The one hard rule
 
