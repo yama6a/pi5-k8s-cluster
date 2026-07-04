@@ -92,10 +92,11 @@ the lock.
 
 Templates duplicated across many charts live in ONE `type: library` chart under `argo_apps/_lib/` (the sole
 exception to "charts live under each tree's `charts/`" — it belongs to neither tree because both consume it). The
-first is `argo_apps/_lib/ingress-edge/`, which renders the whole ingress edge (per host a Gateway + HTTPRoute +
-ReferenceGrant, one multi-SAN Certificate per ingress, + an optional per-ingress SSO SecurityPolicy) for a list of
-ingresses; the platform-ingress chart, each workload chart, and `04_google_sso` (the SSO callback hosts) all
-consume it. Convention for a library + its consumers:
+first is `argo_apps/_lib/ingress-edge/`, which renders the ingress edge (per host a Gateway + HTTPRoute +
+ReferenceGrant, one multi-SAN Certificate per ingress) for a list of ingresses; the platform-ingress chart, each
+workload chart, and `04_google_sso` (its callback hosts) all consume it. It renders NO SSO — Google-SSO is applied
+centrally per domain by `04_google_sso` (one SecurityPolicy per domain with per-host allowlists). Convention for a
+library + its consumers:
 
 - The library is `type: library`, pins no upstream, ships no `Chart.lock` (it renders nothing itself; its
   `values.yaml` holds the shared defaults every consumer inherits — merged under the dependency-name key, e.g.
@@ -154,14 +155,15 @@ Current platform waves:
 | `1`  | argocd, envoy-gateway, vm-operator                     | need the CNI; argocd adopts itself, envoy-gateway owns the Gateway API CRDs (before cert-manager) + the `eg` class. |
 | `2`  | cert-manager, sealed-secrets, longhorn, local-path-provisioner, nic-keeper, cnpg-operator | independent leaves after the platform (CNI + engine) is in place. |
 | `3`  | gateway                                                | the shared :80 Gateway + ClusterIssuers (needs the `eg` class + cert-manager). |
-| `4`  | google-sso                                             | the shared OIDC callback hosts + sealed OAuth client secret (needs the gateway + sealed-secrets). |
+| `4`  | google-sso                                             | CENTRAL Google-SSO: one SecurityPolicy per domain (per-host allowlists, matched by `:authority`) that targetRefs the app routes + the shared callback host google-sso.<domain> + the sealed OAuth secret. |
 | `7`  | grafana, victoria-logs, vm-k8s-stack                   | the monitoring stack (workloads only now); their UIs are exposed by the platform-ingress app at wave 8. |
-| `8`  | platform-ingress                                       | the ONE platform ingress: every platform UI's (argocd/grafana/vmui/vlogs) Gateway + HTTPRoute + ReferenceGrant, one shared multi-SAN Certificate, + the shared SSO SecurityPolicy. Last so all backends (argocd wave 1, monitoring wave 7) exist and the SSO callback + secret (wave 4) are up. |
+| `8`  | platform-ingress                                       | the platform UIs' EDGES (argocd/grafana/vmui/vlogs): per-host Gateway + HTTPRoute + ReferenceGrant + one shared multi-SAN Certificate. No SSO here — google-sso (wave 4) gates these routes. Last so all backends (argocd wave 1, monitoring wave 7) exist. |
 
-Every ingress edge (per host a Gateway + HTTPRoute + ReferenceGrant, one multi-SAN Certificate per ingress, +
-an optional per-ingress SSO SecurityPolicy) is rendered by ONE shared Helm library chart,
-`argo_apps/_lib/ingress-edge/` (see the wrapper-chart section). The platform-ingress app and each workload chart
-consume it; the callback hosts in `04_google_sso` too.
+Every ingress edge (per host a Gateway + HTTPRoute + ReferenceGrant, one multi-SAN Certificate per ingress) is
+rendered by ONE shared Helm library chart, `argo_apps/_lib/ingress-edge/` (see the wrapper-chart section). The
+platform-ingress app, each workload chart, and `04_google_sso` (its callback hosts) consume it. SSO is NOT an
+edge concern — it's central per domain in `04_google_sso` (one SecurityPolicy with per-host allowlists), so a
+workload's ingress is just plain edges and its hosts are gated by listing them in `04_google_sso` domains[].hosts.
 
 Workloads (`sample-workload`, the sample app + its CNPG Postgres + its open/SSO ingress) carry no wave; they live
 in the workloads tree, which the root-of-roots only creates after the entire platform above is Healthy. A workload's
