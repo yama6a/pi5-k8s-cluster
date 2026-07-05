@@ -5,16 +5,29 @@ The repo is a numbered, ordered runbook: execute the steps in sequence to stand 
 
 ## Repository layout
 
-Each stage is a numbered pair:
+The repo is organized by kind; the numbered, ordered runbook is preserved through the file *names* (the `NN`
+prefix keeps things in step order at a glance):
 
-- `NN_name/` is the executable bits (scripts, generated config).
-- `NN_name.md` is the narrative and decision record for that step.
+- `lib/shell/` — every bootstrap script (`NN_name.sh`, e.g. `03d_talos_cluster_config.sh`, plus the
+  `DANGEROUS_*` orchestrators) and the shared `common.sh` library.
+- `docs/` — the narrative + decision record per step (`NN_name.md`, e.g. `03_operating_system.md`).
+- `lib/helm/` — shared Helm charts consumed as a dependency by other charts (see "Shared charts" below).
+- `argo_apps/` — everything ArgoCD delivers (the two-tree GitOps root; see "ArgoCD apps" below).
+- `Makefile` — a thin dispatcher over `lib/shell/` + the orchestrators; `make help` lists every target.
+- `.env` (repo root, gitignored) — the single source of truth for configurable values + secrets.
+- `docs/images/` — hardware photos embedded by `docs/01_hardware.md`.
+- `secrets/` — the cluster-credential dir (`talosconfig`, `kubeconfig`, sealed-secrets key), written by `03d`.
+  A symlink to an off-repo store, gitignored (`/secrets`); never committed. See "Cluster credentials location".
+- `.cache/` — build scratch + output for the step-03 image build (`03a` writes, `03b` reads); gitignored,
+  can grow to >100 GB. Keyed by the pinned build inputs (`BUILD_KEY` in `common.sh`) so a version bump
+  lands in a fresh `.cache/<key>/`.
 
-Run them in order: `01_hardware` -> `02_raspi_eeprom` -> `03_operating_system` -> `04_networking` -> `05_gitops`.
-Multi-phase steps use letter sub-phases (e.g. `03a_talos_image_builder` ... `03e_nic_hardening`).
+Run the steps in order — `02_raspi_eeprom` -> `03a..03g` -> `04_cilium` -> `05_argocd` -> ... — either by hand
+(`bash lib/shell/NN_name.sh`) or via the Makefile (`make <verb-target>`). Multi-phase step 03 uses letter
+sub-phases (`03a_talos_image_builder` ... `03g_k8s_upgrade`).
 
-The `.md` holds the why; the scripts stay thin. When documenting a decision or trade-off, it goes in the step's
-`.md`, not in code comments and not here. This file is only for conventions that span the whole repo.
+The `docs/*.md` holds the why; the scripts stay thin. When documenting a decision or trade-off, it goes in the
+step's `docs/*.md`, not in code comments and not here. This file is only for conventions that span the whole repo.
 
 Always record the reason for a non-obvious setting or decision. Any value, flag, or knob whose purpose isn't
 self-evident gets a short why next to it: the step's `.md` for narrative decisions, or an inline comment for a
@@ -27,14 +40,14 @@ All step scripts follow one house style, match it when adding a new one:
 
 - UX contract: colored `say` / `die` / `warn` / `ok` / `bad` helpers, `PASS`/`FAIL` counters, and a trailing
   `summary` line (`=============== summary: N passed, M failed ===============`), with a non-zero exit on any
-  failure. These come from `lib/common.sh` (see below), not redefined per script.
+  failure. These come from `lib/shell/common.sh` (see below), not redefined per script.
 - Idempotent / re-run-safe. Every bootstrap script must be safe to run again (e.g. `helm upgrade --install`,
   re-checking state before acting). Re-running after a partial failure is the normal recovery path.
 - `# ---- knobs ----` block near the top: script-local tunables are plain hardcoded assignments, grouped together.
   Scripts take no `${VAR:-default}` env-overridable knobs; to change a value, edit it. Shared values (versions, node
   topology, namespaces, domains, ...) live in the gitignored `.env` (template `.env.example`) instead, see "Shared
   library & config" below. Secrets (tokens, passwords, OAuth client id/secret) live in that same gitignored `.env`
-  and are read from it, never prompted at runtime; `lib/common.sh` defaults each to empty so an older `.env` missing
+  and are read from it, never prompted at runtime; `lib/shell/common.sh` defaults each to empty so an older `.env` missing
   a key doesn't trip `set -u`. Leaving a secret empty skips the feature it enables (see each key's `.env.example`
   comment).
 - `set -uo pipefail` baseline, deliberately not `-e` in the PASS/FAIL scripts, so checks accumulate failures
@@ -49,19 +62,19 @@ All step scripts follow one house style, match it when adding a new one:
 
 Helpers and values each live in exactly one place: the library, plus a gitignored `.env` (with a committed template):
 
-- `lib/common.sh`, sourced near the top of every script (`source "${SCRIPT_DIR}/../lib/common.sh"`, or
-  `${SCRIPT_DIR}/lib/common.sh` for repo-root scripts). It self-locates the repo root, loads the gitignored `.env`
+- `lib/shell/common.sh`, sourced near the top of every script (`source "${SCRIPT_DIR}/common.sh"` — every
+  script lives beside it in `lib/shell/`). It self-locates the repo root, loads the gitignored `.env`
   (dies with a `cp .env.example .env` hint if it's missing), derives the values that can't live in a flat `.env`
   (the `CLUSTER_NODES[]` array + `NODES` IP list, `IFACE`, `INSTALL_DISK`, the `*_VERSION` aliases, and the
   `BUILD_KEY`/`BUILD_DIR`/`OUT_DIR` build-cache paths), and provides: the `say`/`die`/`warn` + `ok`/`bad`/`summary`
   output helpers; `require <tools...>` (preflight, dies with an install hint); `CLUSTER_DIR` + `use_kubeconfig` /
-  `assert_api` (the 03d talos-cluster credentials); a dockerized `talosctl()`; and
+  `assert_api` (the 03d secrets credentials); a dockerized `talosctl()`; and
   `seal_secret <name> <ns> <key> <value> <out>` (used by 07/09). It never sets shell options; each script keeps
   its own `set` line.
 - `.env` (repo root, gitignored) is the single source of truth for the repo's configurable scalar values
   (versions, node topology, domains, namespaces, ...) **and its secrets** (tokens, passwords, OAuth client
   id/secret, in a dedicated section). Plain `KEY=value` only, no logic, arrays, or command substitution (those are
-  derived in `lib/common.sh`). `.env.example` is the committed template: copy it to `.env` and edit. Personal/network
+  derived in `lib/shell/common.sh`). `.env.example` is the committed template: copy it to `.env` and edit. Personal/network
   values (IPs, domains, emails, GHCR user, repo URL) are fake placeholders in the template, and every secret is an
   **empty** placeholder there (never a real value); the version/digest/identifier recipe is real. Build-machinery
   internals used by a single script (registry/builder names, the gmake path, the staged-image filename, a step's own
@@ -69,9 +82,11 @@ Helpers and values each live in exactly one place: the library, plus a gitignore
 
 ### Cluster credentials location
 
-`03_operating_system/talos-cluster/` is the canonical output dir for `talosconfig` + `kubeconfig` (written by `03d`).
-Downstream scripts reach it via `lib/common.sh`'s `CLUSTER_DIR` constant + `use_kubeconfig` helper (which exports
-`KUBECONFIG` from there). Read from this path, don't scatter copies.
+`secrets/` (repo root) is the canonical output dir for `talosconfig` + `kubeconfig` (written by `03d`). It is a
+symlink to an off-repo credential store (a synced drive), so the live secrets stay backed up and out of git —
+the `/secrets` ignore rule keeps them uncommittable (a `.gitkeep` can't live "inside" a symlink).
+Downstream scripts reach it via `lib/shell/common.sh`'s `CLUSTER_DIR` constant + `use_kubeconfig` helper (which
+exports `KUBECONFIG` from there). Read from this path, don't scatter copies.
 
 ## Helm wrapper-chart pattern (single source of truth)
 
@@ -88,17 +103,17 @@ adopts the running release it sees it in-sync: no pod churn, no fighting. No ver
 a script. To change config, edit the chart's `values.yaml`; to upgrade, bump the dependency in `Chart.yaml` and refresh
 the lock.
 
-### Shared charts (`argo_apps/_lib/`)
+### Shared charts (`lib/helm/`)
 
-Charts consumed as a dependency by other charts (rather than by ArgoCD directly) live under `argo_apps/_lib/`
-(the sole exception to "charts live under each tree's `charts/`" — they belong to neither tree because charts in
-both trees consume them). Two live here:
+Charts consumed as a dependency by other charts (rather than by ArgoCD directly) live under `lib/helm/`,
+outside the `argo_apps/` GitOps trees — they belong to neither tree because charts in both trees consume them.
+Two live here:
 
-- `argo_apps/_lib/ingress-edge/` (`type: library`) — renders the ingress edge (per host a Gateway + HTTPRoute +
+- `lib/helm/ingress-edge/` (`type: library`) — renders the ingress edge (per host a Gateway + HTTPRoute +
   ReferenceGrant, one multi-SAN Certificate per ingress) for a list of ingresses; the platform-ingress chart, each
   workload chart, and `04_google_sso` (its callback hosts) all consume it. It renders NO SSO — Google-SSO is applied
   centrally per domain by `04_google_sso` (one SecurityPolicy per domain with per-host allowlists).
-- `argo_apps/_lib/pg-cluster/` (`type: application`) — the curated CNPG Postgres wrapper: pins the upstream
+- `lib/helm/pg-cluster/` (`type: application`) — the curated CNPG Postgres wrapper: pins the upstream
   `cnpg/cluster` chart and pre-bakes all its boilerplate, exposing a workload only the REQUIRED knobs
   (`type`/`instances`/`resources`) + a few defaulted ones. Consumed by each Postgres-backed workload
   (`sample_workload`).
@@ -112,7 +127,7 @@ Convention for a shared chart + its consumers:
   upstream dependency it can't be a library, so it DOES ship a committed `Chart.lock` AND commits its vendored
   `charts/*.tgz` (overriding the usual tgz gitignore) — a `file://` consumer's `helm dependency build` won't fetch
   this transitive REMOTE dependency over the network, so it has to travel in git. See its `.gitignore` for the why.
-- A consumer declares either as a **local `file://` dependency** (`repository: "file://../../../_lib/<name>"`),
+- A consumer declares either as a **local `file://` dependency** (`repository: "file://../../../../lib/helm/<name>"`),
   commits the resulting `Chart.lock` (run `helm dependency update`), and gitignores its own `charts/*.tgz`. ArgoCD's
   repo-server runs `helm dependency build`, which resolves the relative path inside the repo checkout — so the lock
   MUST be committed.
@@ -130,10 +145,10 @@ argo_apps/
   roots/
     0_platform.yaml         #   Application "platform"  (sync-wave 0) -> recurses platform/apps
     1_workloads.yaml        #   Application "workloads" (sync-wave 1) -> recurses workloads/apps
-  _lib/ingress-edge/        # shared type:library chart: the ingress edge (consumed by both trees + 04_google_sso)
   platform/{apps,charts}/   # CNI, operators, CRDs, storage, gateway, SSO, monitoring, platform-ingress
   workloads/{apps,charts}/  # the actual apps (sample-workload)
 ```
+(Shared dependency charts — the ingress edge + the pg-cluster wrapper — live outside this tree in `lib/helm/`.)
 
 The root-of-roots creates the platform root first and waits for it to be Healthy (which aggregates every
 platform app's health) before creating the workloads root. So workloads never reconcile against missing
@@ -173,7 +188,7 @@ Current platform waves:
 | `8`  | platform-ingress                                       | the platform UIs' EDGES (argocd/grafana/vmui/vlogs): per-host Gateway + HTTPRoute + ReferenceGrant + one shared multi-SAN Certificate. No SSO here — google-sso (wave 4) gates these routes. Last so all backends (argocd wave 1, monitoring wave 7) exist. |
 
 Every ingress edge (per host a Gateway + HTTPRoute + ReferenceGrant, one multi-SAN Certificate per ingress) is
-rendered by ONE shared Helm library chart, `argo_apps/_lib/ingress-edge/` (see the wrapper-chart section). The
+rendered by ONE shared Helm library chart, `lib/helm/ingress-edge/` (see the wrapper-chart section). The
 platform-ingress app, each workload chart, and `04_google_sso` (its callback hosts) consume it. SSO is NOT an
 edge concern — it's central per domain in `04_google_sso` (one SecurityPolicy with per-host allowlists), so a
 workload's ingress is just plain edges and its hosts are gated by listing them in `04_google_sso` domains[].hosts.
