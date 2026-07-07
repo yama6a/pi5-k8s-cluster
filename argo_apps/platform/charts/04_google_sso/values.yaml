@@ -40,6 +40,9 @@ domains:
       - host: vlogs.pontiki.app
         allowlist:
           - yassin.samoila@gmail.com
+      - host: hubble.pontiki.app
+        allowlist:
+          - yassin.samoila@gmail.com
       - host: sample-workload-sso.pontiki.app
         allowlist:
           - yassin.samoila@gmail.com
