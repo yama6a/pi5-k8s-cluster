@@ -46,7 +46,7 @@ domains:
       - host: longhorn.pontiki.app
         allowlist:
           - yassin.samoila@gmail.com
-      - host: sample-workload-sso.pontiki.app
+      - host: sample-user-manager-sso.pontiki.app
         allowlist:
           - yassin.samoila@gmail.com
       - host: rabbitmq.pontiki.app       # RabbitMQ management UI (08_platform_ingress); edge SSO + RabbitMQ's own login
