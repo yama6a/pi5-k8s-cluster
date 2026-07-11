@@ -202,8 +202,9 @@ ingress (rendered by the same library) carries its OWN SSO allowlist, independen
 - **Default sync posture: automated leaf.** Unless a doc says otherwise, a platform app is
   `syncPolicy.automated` with `prune: true` + `selfHeal: true` (plus `ServerSideApply=true` where its CRDs
   blow the client-side last-applied-annotation limit). A "safe leaf" can't cut the cluster off its own
-  network, so drift just auto-corrects. The only exception is Cilium (auto-sync *without* `selfHeal`/`prune`),
-  called out in `04_networking.md` / `05_gitops.md`.
+  network, so drift just auto-corrects. Cilium (wave 0) runs this SAME `prune`+`selfHeal` posture for
+  convenience even though it's the one app that CAN cut the cluster off its own network — a deliberately
+  accepted risk, called out in `04_networking.md` / `05_gitops.md`.
 - **Commit `Chart.lock` before an app syncs.** Any wrapper chart with dependencies needs its resolved
   `Chart.lock` committed: ArgoCD's repo-server runs `helm dependency build`, which requires it. Run
   `helm dependency update <chart>` and commit the lock, or the app sits `OutOfSync` with a
@@ -221,12 +222,13 @@ ingress (rendered by the same library) carries its OWN SSO allowlist, independen
 Never put a manual-sync (or otherwise perpetually-`OutOfSync`) app at an earlier wave than apps that depend on it. A
 manual app starts OutOfSync and its wave never clears, so the root never creates later-wave apps, self-management stalls.
 
-This is why Cilium auto-syncs despite being the app that can cut the cluster (and Argo) off its own network. To keep
-that safe it auto-syncs without `selfHeal` and with `prune: false`:
+This is why Cilium auto-syncs despite being the app that can cut the cluster (and Argo) off its own network: a
+manual Cilium app would start OutOfSync at wave 0 and stall every later wave. It auto-syncs with FULL `selfHeal` +
+`prune` (the same as every leaf), for convenience, knowingly accepting the danger:
 
-- `selfHeal: false` -> an out-of-band break-glass fix (`04_cilium.sh`) is never auto-reverted mid-incident.
-- `prune: false` -> a removed CRD is never cascade-deleted.
-- Price: a bad Cilium change pushed to git applies unattended. Mind your pushes, and after any break-glass commit the
-  fix back to git (otherwise its app sits OutOfSync at wave 0 and blocks later waves).
+- `selfHeal: true` -> an out-of-band break-glass fix (`04_cilium.sh`) IS reverted unless you commit it to git fast.
+- `prune: true` -> a resource/CRD removed from the chart IS cascade-deleted on the next sync.
+- Price: a bad Cilium change pushed to git applies unattended AND is self-healed in place. Mind your pushes, and
+  after any break-glass commit the fix back to git before `selfHeal` drags the cluster back to the bad state.
 
 See `05_gitops.md` ("sync-wave convention") and `04_networking.md` (circular-dependency caveat) for the full reasoning.
