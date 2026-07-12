@@ -109,8 +109,8 @@ Next:
   - git add -A && git commit && git push   # ArgoCD unseals the secret + applies the callbacks/policies
   - for EACH domain's callback host (${AUTH_SUBDOMAIN}.<domain>) AND each gated app host: point public DNS
     at the home router + forward :80 to the Gateway IP on the old Pi so cert-manager's HTTP-01 issues.
-  - test:  open https://sample-workload-sso.pontiki.app/  -> Google login; only its allowlist passes.
-           (sample-workload.pontiki.app stays OPEN, not listed in google-sso.)
+  - test:  open https://sample-user-manager-sso.app.pontiki.app/  -> Google login; only its allowlist passes.
+           (sample-user-manager.app.pontiki.app stays OPEN, not listed in google-sso.)
   - protect another host: add it to \`domains[].hosts\` in 04_google_sso/values.yaml (with its allowlist).
     No Google change if that domain already has a callback host; a NEW domain = add a \`domains\` entry +
     register one more redirect URI here. See 07_ingress.md.

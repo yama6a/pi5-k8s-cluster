@@ -185,7 +185,12 @@ Each ingress declares exactly one registrable `domain`; every host gives a `subd
 (host = `<subdomain>.<domain>`; `subdomain: "@"` = the apex). The library `fail`s the render (so ArgoCD
 reports it, nothing applies) if an ingress has **no `domain`**, a host has **no `subdomain`**, or a
 `subdomain` **looks like a full hostname** (already ends with the domain — the classic copy-paste slip).
-Per-host resource names derive from the full host (`argocd.pontiki.app` -> `argocd-pontiki-app`).
+Per-host resource names derive from the full host (`argocd.ops.pontiki.app` -> `argocd-ops-pontiki-app`).
+
+Two tiers under the one base domain: **platform UIs** (`08_platform_ingress`) sit under `*.ops.<base>`,
+**workloads** under `*.app.<base>` (e.g. `grafana.ops.pontiki.app`, `sample-user-manager.app.pontiki.app`).
+Each is still one registrable `domain` from the library's point of view (`ops.pontiki.app` / `app.pontiki.app`),
+so they get separate per-ingress multi-SAN certs; SSO keeps them under a single `pontiki.app` entry (below).
 
 ## Google SSO — one policy per domain, per-host allowlists
 
@@ -222,19 +227,21 @@ whom, is the **central `domains[].hosts` map** in `04_google_sso/values.yaml`:
 
 ```yaml
 domains:
-  - domain: pontiki.app
+  - domain: pontiki.app                          # ONE entry gates both tiers (ops. + app.): cookieDomain/callback are its parent
     issuer: letsencrypt-staging
     hosts:
-      - host: argocd.pontiki.app
+      - host: argocd.ops.pontiki.app             # a platform UI (*.ops.<base>)
         allowlist: [admin@…]
-      - host: sample-workload-sso.pontiki.app   # a workload host, gated centrally
+      - host: sample-workload-sso.app.pontiki.app   # a workload host (*.app.<base>), gated centrally
         allowlist: [user@…]
 ```
 
 The policy `targetRefs` each host's route **by name** (the full host, dots -> dashes — the library's naming),
 so it attaches to routes created by *any* chart. To protect a host: add it here with its allowlist (its route
-exists wherever its ingress lives). A host not listed stays open. `sample-workload.pontiki.app` is the open
-control (not listed); `sample-workload-sso.pontiki.app` is listed → gated.
+exists wherever its ingress lives). A host not listed stays open. `sample-workload.app.pontiki.app` is the open
+control (not listed); `sample-workload-sso.app.pontiki.app` is listed → gated. Note the single `pontiki.app`
+domain entry gates hosts across *both* the `ops.` and `app.` tiers — `cookieDomain: pontiki.app` and the
+`google-sso.pontiki.app` callback are a parent of each, so no per-tier policy/redirect-URI split is needed.
 
 ### Bypassing SSO for a path (the ArgoCD webhook)
 

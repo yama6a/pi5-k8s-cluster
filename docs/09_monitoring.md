@@ -98,13 +98,13 @@ before it's sealed). Leave the var empty and the script offers to delete the sea
 Host/user/from are non-secret in the values. This is the only imperative script for this step; the VM stack
 and metrics-server are pure GitOps.
 
-Grafana's `grafana.pontiki.app` edge (Gateway + Certificate + SSO HTTPRoute) is served by the consolidated
+Grafana's `grafana.ops.pontiki.app` edge (Gateway + Certificate + SSO HTTPRoute) is served by the consolidated
 platform-ingress app (wave 8), not the `07_grafana` chart; see [07_ingress.md](07_ingress.md).
 
 ### Verify
 ```bash
 kubectl -n monitoring get deploy,pod -l app.kubernetes.io/name=grafana   # Running; no PVC
-# Browse https://grafana.pontiki.app -> Google SSO first, then straight into the UI (anonymous Admin).
+# Browse https://grafana.ops.pontiki.app -> Google SSO first, then straight into the UI (anonymous Admin).
 # Connections -> Data sources shows VictoriaMetrics + VictoriaLogs; curated dashboards listed.
 ```
 

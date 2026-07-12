@@ -25,8 +25,8 @@ database, both ingress modes (open + SSO), **and** a live RabbitMQ message loop.
 - ingress: one ingress, two hosts (plain edges rendered by the shared `ingress-edge` library, see
   [07_ingress.md](07_ingress.md)), each host's Gateway folded onto the one shared Envoy via `mergeGateways`.
   This chart configures **no SSO** — gating is central in [`04_google_sso`](07_ingress.md):
-  - `sample-user-manager.pontiki.app`: OPEN — not listed in `04_google_sso`, the unprotected control.
-  - `sample-user-manager-sso.pontiki.app`: GATED — listed in `04_google_sso` `domains[].hosts` with its own
+  - `sample-user-manager.app.pontiki.app`: OPEN — not listed in `04_google_sso`, the unprotected control.
+  - `sample-user-manager-sso.app.pontiki.app`: GATED — listed in `04_google_sso` `domains[].hosts` with its own
     allowlist; that chart's per-domain `SecurityPolicy` targetRefs this route and gates it. Auth bounces via
     the shared `google-sso.pontiki.app` callback host.
 
@@ -120,7 +120,7 @@ not a selector, so an exact pin would only force a bump here whenever the local 
 ### Ordering: a workload, gated behind the whole platform
 This workload needs the CNPG operator's `Cluster` CRD + the `local-path` class (platform wave 2), the
 shared `:80` Gateway (`03_gateway`, platform wave 3), and `04_google_sso` (platform wave 4, whose per-domain
-`SecurityPolicy` already lists `sample-workload-sso.pontiki.app` and attaches to this route once it appears)
+`SecurityPolicy` already lists `sample-user-manager-sso.app.pontiki.app` and attaches to this route once it appears)
 to already exist, otherwise the `Cluster` CR would hit a missing CRD, or login would fail with no callback.
 As a workload it gets all of that for free:
 the root-of-roots only creates the workloads tree after the entire platform is Synced + Healthy, so
@@ -181,8 +181,8 @@ Checks (`export KUBECONFIG=secrets/kubeconfig`):
   `sample-workload-analytics`.
 - `kubectl -n gateway get certificate sample-workload sample-workload-sso` -> `READY=True` once DNS + the
   `:80` forward exist.
-- `https://sample-workload.pontiki.app/` -> the app, no login (open control).
-- `https://sample-workload-sso.pontiki.app/` -> Google login -> bounce via `google-sso.pontiki.app` -> an
+- `https://sample-user-manager.app.pontiki.app/` -> the app, no login (open control).
+- `https://sample-user-manager-sso.app.pontiki.app/` -> Google login -> bounce via `google-sso.pontiki.app` -> an
   allowlisted account reaches the app; a non-listed one is denied (see [07_ingress.md](07_ingress.md)).
 
 ## Caveats
