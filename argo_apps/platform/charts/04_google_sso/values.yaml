@@ -28,27 +28,32 @@ domains:
   - domain: pontiki.app
     issuer: letsencrypt-staging   # callback cert issuer (letsencrypt-staging | letsencrypt-prod)
     hosts:
-      - host: argocd.pontiki.app
+      # Platform UIs (08_platform_ingress) live under the *.ops.<domain> tier; the workload
+      # (sample_user_manager) under *.app.<domain>. All still share this one pontiki.app domain entry:
+      # cookieDomain + callback google-sso.pontiki.app are a parent of both, so the OAuth flow completes
+      # across both tiers with no Google Console change. Each host MUST equal the FQDN its ingress renders
+      # (the SecurityPolicy attaches to routes by dashed-host name). See 07_ingress.md.
+      - host: argocd.ops.pontiki.app
         allowlist:
           - yassin.samoila@gmail.com
-      - host: grafana.pontiki.app
+      - host: grafana.ops.pontiki.app
         allowlist:
           - yassin.samoila@gmail.com
-      - host: vmui.pontiki.app
+      - host: vmui.ops.pontiki.app
         allowlist:
           - yassin.samoila@gmail.com
-      - host: vlogs.pontiki.app
+      - host: vlogs.ops.pontiki.app
         allowlist:
           - yassin.samoila@gmail.com
-      - host: hubble.pontiki.app
+      - host: hubble.ops.pontiki.app
         allowlist:
           - yassin.samoila@gmail.com
-      - host: longhorn.pontiki.app
+      - host: longhorn.ops.pontiki.app
         allowlist:
           - yassin.samoila@gmail.com
-      - host: sample-user-manager-sso.pontiki.app
+      - host: sample-user-manager-sso.app.pontiki.app
         allowlist:
           - yassin.samoila@gmail.com
-      - host: rabbitmq.pontiki.app       # RabbitMQ management UI (08_platform_ingress); edge SSO + RabbitMQ's own login
+      - host: rabbitmq.ops.pontiki.app   # RabbitMQ management UI (08_platform_ingress); edge SSO + RabbitMQ's own login
         allowlist:
           - yassin.samoila@gmail.com
