@@ -107,7 +107,7 @@ the lock.
 
 Charts consumed as a dependency by other charts (rather than by ArgoCD directly) live under `lib/helm/`,
 outside the `argo_apps/` GitOps trees — they belong to neither tree because charts in both trees consume them.
-Two live here:
+Three live here:
 
 - `lib/helm/ingress-edge/` (`type: library`) — renders the ingress edge (per host a Gateway + HTTPRoute +
   ReferenceGrant, one multi-SAN Certificate per ingress) for a list of ingresses; the platform-ingress chart, each
@@ -117,16 +117,27 @@ Two live here:
   `cnpg/cluster` chart and pre-bakes all its boilerplate, exposing a workload only the REQUIRED knobs
   (`type`/`instances`/`resources`) + a few defaulted ones. Consumed by each Postgres-backed workload
   (`sample_workload`).
+- `lib/helm/redis-instance/` (`type: application`) — the curated OpsTree Redis wrapper: renders one standalone
+  `Redis` CR + its ServiceMonitor + a default-deny CiliumNetworkPolicy, exposing a workload four REQUIRED knobs
+  (`name`/`resources`/`allowedClients`/`persistence` — the latter true=durable Retain+AOF | false=ephemeral
+  Delete+RDB-only, no default) plus an optional create-time `initialFixedDiskSize`; everything else (images, exporter, maxmemory,
+  non-root, no-auth) is hardcoded. A single standalone instance (no HA/replication/backups). The two Longhorn
+  classes it selects between are shipped by the platform's `03_redis_operator` app (wave 3). Aliased once per instance
+  (like pg-cluster) so a workload can run one or more. See `12_redis.md`.
 
 Convention for a shared chart + its consumers:
 
 - A **`type: library`** chart (ingress-edge) pins no upstream and ships no `Chart.lock` (it renders nothing itself;
   its `values.yaml` holds the shared defaults every consumer inherits — merged under the dependency-name key, e.g.
   `ingress-edge`, the repo's usual "config under the dependency name" convention).
-- A **`type: application`** shared chart (pg-cluster) is the deliberate deviation: because it must pin a real
-  upstream dependency it can't be a library, so it DOES ship a committed `Chart.lock` AND commits its vendored
-  `charts/*.tgz` (overriding the usual tgz gitignore) — a `file://` consumer's `helm dependency build` won't fetch
-  this transitive REMOTE dependency over the network, so it has to travel in git. See its `.gitignore` for the why.
+- A **`type: application`** shared chart comes in two flavours here. **pg-cluster** must pin a real upstream
+  dependency (`cnpg/cluster`), so it can't be a library: it DOES ship a committed `Chart.lock` AND commits its
+  vendored `charts/*.tgz` (overriding the usual tgz gitignore) — a `file://` consumer's `helm dependency build`
+  won't fetch that transitive REMOTE dependency over the network, so it has to travel in git (see its `.gitignore`).
+  **redis-instance** is `type: application` only because it must render manifests when included as a dependency (a
+  library renders nothing of its own), but it pins NO upstream — it templates the `Redis` CR directly — so like a
+  library it ships no `Chart.lock` and no vendored tgz. Rule of thumb: *wrap an upstream chart* → the pg-cluster
+  apparatus (lock + vendored tgz); *render CRs an operator defines* → the redis-instance shape (neither).
 - A consumer declares either as a **local `file://` dependency** (`repository: "file://../../../../lib/helm/<name>"`),
   commits the resulting `Chart.lock` (run `helm dependency update`), and gitignores its own `charts/*.tgz`. ArgoCD's
   repo-server runs `helm dependency build`, which resolves the relative path inside the repo checkout — so the lock
@@ -182,7 +193,7 @@ Current platform waves:
 | `0`  | cilium, prometheus-operator-crds, vm-operator-crds     | the CNI (underpins all pod networking), plus the monitoring CRDs everything else's ServiceMonitors land on. |
 | `1`  | argocd, envoy-gateway, vm-operator                     | need the CNI; argocd adopts itself, envoy-gateway owns the Gateway API CRDs (before cert-manager) + the `eg` class. |
 | `2`  | cert-manager, sealed-secrets, longhorn, local-path-provisioner, nic-keeper, cnpg-operator | independent leaves after the platform (CNI + engine) is in place. |
-| `3`  | gateway                                                | the shared :80 Gateway + ClusterIssuers (needs the `eg` class + cert-manager). |
+| `3`  | gateway, redis-operator                                | the shared :80 Gateway + ClusterIssuers (needs the `eg` class + cert-manager); plus the OpsTree Redis operator + its two Longhorn StorageClasses (longhorn-redis-persistent/ephemeral). redis-operator sits at 3 (not 2, where operators usually go) because its bundled StorageClasses use Longhorn's provisioner; webhook off so no cert-manager dep; per-workload `Redis` via lib/helm/redis-instance. |
 | `4`  | google-sso                                             | CENTRAL Google-SSO: one SecurityPolicy per domain (per-host allowlists, matched by `:authority`) that targetRefs the app routes + the shared callback host google-sso.<domain> + the sealed OAuth secret. |
 | `7`  | grafana, victoria-logs, vm-k8s-stack                   | the monitoring stack (workloads only now); their UIs are exposed by the platform-ingress app at wave 8. |
 | `8`  | platform-ingress                                       | the platform UIs' EDGES (argocd/grafana/vmui/vlogs): per-host Gateway + HTTPRoute + ReferenceGrant + one shared multi-SAN Certificate. No SSO here — google-sso (wave 4) gates these routes. Last so all backends (argocd wave 1, monitoring wave 7) exist. |
