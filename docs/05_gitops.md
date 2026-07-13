@@ -207,7 +207,7 @@ Delivered purely by ArgoCD as one host of the consolidated platform-ingress app 
 `argo_apps/platform/apps/08_platform_ingress.yaml`, chart `argo_apps/platform/charts/08_platform_ingress/`):
 its own `:443` `Gateway` (named `argocd-ops-pontiki-app`, from the hostname) + a cross-namespace `HTTPRoute` to
 `argocd-server` + a `ReferenceGrant`, plus a SAN entry on the platform ingress's shared `platform-tls` cert,
-all rendered by the shared `ingress-edge` library. ArgoCD is untouched — it keeps `server.insecure: true` and
+all rendered by the shared `ingress` library. ArgoCD is untouched — it keeps `server.insecure: true` and
 serves plain HTTP on `argocd-server:80`; the Gateway terminates TLS.
 
 Gating is central: `argocd.ops.pontiki.app` is listed in `04_google_sso` `domains[].hosts` with its allowlist, so
