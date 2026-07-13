@@ -198,8 +198,8 @@ Current platform waves:
 | `2`  | cert-manager, sealed-secrets, longhorn, local-path-provisioner, nic-keeper, cnpg-operator | independent leaves after the platform (CNI + engine) is in place. |
 | `3`  | gateway, redis-operator                                | the shared :80 Gateway + ClusterIssuers (needs the `eg` class + cert-manager); plus the OpsTree Redis operator + its two Longhorn StorageClasses (longhorn-redis-persistent/ephemeral). redis-operator sits at 3 (not 2, where operators usually go) because its bundled StorageClasses use Longhorn's provisioner; webhook off so no cert-manager dep; per-workload `Redis` via lib/helm/redis-instance. |
 | `4`  | google-sso                                             | CENTRAL Google-SSO: one SecurityPolicy per domain (per-host allowlists, matched by `:authority`) that targetRefs the app routes + the shared callback host google-sso.<domain> + the sealed OAuth secret. |
-| `7`  | grafana, victoria-logs, vm-k8s-stack                   | the monitoring stack (workloads only now); their UIs are exposed by the platform-ingress app at wave 8. |
-| `8`  | platform-ingress                                       | the platform UIs' EDGES (argocd/grafana/vmui/vlogs): per-host Gateway + HTTPRoute + ReferenceGrant + one shared multi-SAN Certificate. No SSO here — google-sso (wave 4) gates these routes. Last so all backends (argocd wave 1, monitoring wave 7) exist. |
+| `5`  | grafana, victoria-logs, vm-k8s-stack                   | the monitoring stack (workloads only now); their UIs are exposed by the platform-ingress app at wave 6. |
+| `6`  | platform-ingress                                       | the platform UIs' EDGES (argocd/grafana/vmui/vlogs): per-host Gateway + HTTPRoute + ReferenceGrant + one shared multi-SAN Certificate. No SSO here — google-sso (wave 4) gates these routes. Last so all backends (argocd wave 1, monitoring wave 5) exist. |
 
 Every ingress edge (per host a Gateway + HTTPRoute + ReferenceGrant, one multi-SAN Certificate per ingress) is
 rendered by ONE shared Helm library chart, `lib/helm/ingress/` (see the wrapper-chart section). The
@@ -228,7 +228,7 @@ ingress (rendered by the same library) carries its OWN SSO allowlist, independen
 - **Runbook doc number ≠ sync-wave number.** The top-level `NN_name.md` prefix is *runbook step order*; the
   `argo_apps/**` `NN_` prefix is the *sync-wave*. The two are independent: one doc can cover several argo apps
   at different waves — e.g. `07_ingress.md` documents argo apps `01_envoy_gateway` (wave 1), `02_cert_manager`
-  (wave 2), `03_gateway` (wave 3), `04_google_sso` (wave 4) and `08_platform_ingress` (wave 8). Never renumber
+  (wave 2), `03_gateway` (wave 3), `04_google_sso` (wave 4) and `06_platform_ingress` (wave 6). Never renumber
   under `argo_apps/` to match a doc.
 
 ### The one hard rule
