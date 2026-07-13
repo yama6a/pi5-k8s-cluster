@@ -225,6 +225,11 @@ ingress (rendered by the same library) carries its OWN SSO allowlist, independen
   `helm dependency build` error.
 - **Push before you expect a sync.** ArgoCD reconciles the pushed git *remote*, not your working tree.
   Commit + push `argo_apps/**` (incl. `Chart.lock`) or the app reports `ComparisonError: path does not exist`.
+- **Every Application carries the `resources-finalizer`.** The root-of-roots, both roots, and every
+  `platform/apps/**` + `workloads/apps/**` leaf set `metadata.finalizers:
+  [resources-finalizer.argocd.argoproj.io]`, so removing or renaming an app cascade-deletes its resources
+  instead of orphaning them (`prune` is within-app; it does NOT cascade on Application deletion). Add it to any
+  new app. See `05_gitops.md` ("Removing or renaming an app").
 - **Runbook doc number ≠ sync-wave number.** The top-level `NN_name.md` prefix is *runbook step order*; the
   `argo_apps/**` `NN_` prefix is the *sync-wave*. The two are independent: one doc can cover several argo apps
   at different waves — e.g. `07_ingress.md` documents argo apps `01_envoy_gateway` (wave 1), `02_cert_manager`
