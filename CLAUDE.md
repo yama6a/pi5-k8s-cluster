@@ -109,10 +109,13 @@ Charts consumed as a dependency by other charts (rather than by ArgoCD directly)
 outside the `argo_apps/` GitOps trees — they belong to neither tree because charts in both trees consume them.
 Three live here:
 
-- `lib/helm/ingress-edge/` (`type: library`) — renders the ingress edge (per host a Gateway + HTTPRoute +
+- `lib/helm/ingress/` (`type: library`) — renders the ingress edge (per host a Gateway + HTTPRoute +
   ReferenceGrant, one multi-SAN Certificate per ingress) for a list of ingresses; the platform-ingress chart, each
-  workload chart, and `04_google_sso` (its callback hosts) all consume it. It renders NO SSO — Google-SSO is applied
-  centrally per domain by `04_google_sso` (one SecurityPolicy per domain with per-host allowlists).
+  workload chart, and `04_google_sso` (its callback hosts) all consume it. Consumers configure ONLY their own
+  `ingresses[]` (per-ingress the only cert knob is `issuer`); the cluster wiring (gateway namespace `gateway`,
+  gateway class `eg`, fallback issuer) is hardcoded in the library as a platform invariant, NOT a per-consumer
+  value. It renders NO SSO — Google-SSO is applied centrally per domain by `04_google_sso` (one SecurityPolicy per
+  domain with per-host allowlists).
 - `lib/helm/pg-cluster/` (`type: application`) — the curated CNPG Postgres wrapper: pins the upstream
   `cnpg/cluster` chart and pre-bakes all its boilerplate, exposing a workload only the REQUIRED knobs
   (`type`/`instances`/`resources`) + a few defaulted ones. Consumed by each Postgres-backed workload
@@ -127,9 +130,9 @@ Three live here:
 
 Convention for a shared chart + its consumers:
 
-- A **`type: library`** chart (ingress-edge) pins no upstream and ships no `Chart.lock` (it renders nothing itself;
-  its `values.yaml` holds the shared defaults every consumer inherits — merged under the dependency-name key, e.g.
-  `ingress-edge`, the repo's usual "config under the dependency name" convention).
+- A **`type: library`** chart (ingress) pins no upstream and ships no `Chart.lock` (it renders nothing itself;
+  its `values.yaml` holds the defaults every consumer inherits — merged under the dependency-name key, e.g.
+  `ingress`, the repo's usual "config under the dependency name" convention).
 - A **`type: application`** shared chart comes in two flavours here. **pg-cluster** must pin a real upstream
   dependency (`cnpg/cluster`), so it can't be a library: it DOES ship a committed `Chart.lock` AND commits its
   vendored `charts/*.tgz` (overriding the usual tgz gitignore) — a `file://` consumer's `helm dependency build`
@@ -142,7 +145,7 @@ Convention for a shared chart + its consumers:
   commits the resulting `Chart.lock` (run `helm dependency update`), and gitignores its own `charts/*.tgz`. ArgoCD's
   repo-server runs `helm dependency build`, which resolves the relative path inside the repo checkout — so the lock
   MUST be committed.
-- A consumer's whole template is often one line (`{{ include "ingress-edge.render" . }}`); config is all values
+- A consumer's whole template is often one line (`{{ include "ingress.render" . }}`); config is all values
   (pg-cluster renders via its dependency, so a consumer needs no template for it at all — just the values block).
 
 ## ArgoCD apps: two trees + naming & sync-wave convention
@@ -199,7 +202,7 @@ Current platform waves:
 | `8`  | platform-ingress                                       | the platform UIs' EDGES (argocd/grafana/vmui/vlogs): per-host Gateway + HTTPRoute + ReferenceGrant + one shared multi-SAN Certificate. No SSO here — google-sso (wave 4) gates these routes. Last so all backends (argocd wave 1, monitoring wave 7) exist. |
 
 Every ingress edge (per host a Gateway + HTTPRoute + ReferenceGrant, one multi-SAN Certificate per ingress) is
-rendered by ONE shared Helm library chart, `lib/helm/ingress-edge/` (see the wrapper-chart section). The
+rendered by ONE shared Helm library chart, `lib/helm/ingress/` (see the wrapper-chart section). The
 platform-ingress app, each workload chart, and `04_google_sso` (its callback hosts) consume it. SSO is NOT an
 edge concern — it's central per domain in `04_google_sso` (one SecurityPolicy with per-host allowlists), so a
 workload's ingress is just plain edges and its hosts are gated by listing them in `04_google_sso` domains[].hosts.
