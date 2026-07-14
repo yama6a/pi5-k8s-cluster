@@ -33,8 +33,8 @@ jobs:
   renovate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: renovatebot/github-action@v46.1.19
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: renovatebot/github-action@22e0a16091fc706b04affe6ae53d5e3358ac4023 # v46.1.19
         with:
           # Dedicated PAT (repo secret). GITHUB_TOKEN can't open PRs that re-trigger workflows and lacks scope.
           token: ${{ secrets.RENOVATE_TOKEN }}
