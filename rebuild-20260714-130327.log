@@ -1,0 +1,14 @@
+bash lib/shell/DANGEROUS_rebuild_cluster.sh
+
+This will DESTROY and REBUILD the entire Talos cluster:
+  nodes : 192.168.10.201 192.168.10.202 192.168.10.203
+  wipe  : STATE + EPHEMERAL + u-longhorn + u-localpath  (ALL k8s state AND all Longhorn + local-path data, gone for good)
+  flow  : commit+push -> reset -> 03d -> 03e -> 04 -> 05 -> restore sealed-secrets key -> WIPE S3 backups
+          (ArgoCD then redeploys cilium/cert-manager/longhorn/gateway/SSO/monitoring from git)
+  note  : FULL fresh start — wipes local CNPG data AND the S3 backups. The DBs come back EMPTY. If you want
+          the old data, restore from S3 BEFORE rebuilding (make restore-cnpg); a rebuild discards it.
+
+Have a CURRENT sealed-secrets key backup (06_backup_sealed_secrets_key.sh), else SSO + Grafana
+email won't decrypt until you re-seal (07_google_sso, 09_grafana_smtp).
+>> type REBUILD to proceed: 
+[1;36m>> STEP 1/10, git add + commit + push[0m
