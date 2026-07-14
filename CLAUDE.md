@@ -34,6 +34,11 @@ self-evident gets a short why next to it: the step's `.md` for narrative decisio
 config/`values.yaml` setting (see the existing comments in the wrapper charts' `values.yaml` for the expected style).
 A future reader should never have to guess why a non-default value is what it is.
 
+Comment style (hard rules):
+- Comment the WHY and WHAT, but ONLY when it's not self-evident. Self-evident code gets no comment.
+- Keep them SHORT. A half-sentence on the SAME line as the thing it documents is ideal. Two lines is usually already too much; paragraphs/walls of text NEVER.
+- Bullets over sentences. Don't care about grammar, punctuation, or full sentences — shorter is better. Nobody reads walls of text.
+
 ## Bootstrap scripts
 
 All step scripts follow one house style, match it when adding a new one:
