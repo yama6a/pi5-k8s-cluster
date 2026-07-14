@@ -32,7 +32,7 @@ metadata:
 spec:
   kubernetesConfig:
     # renovate: datasource=docker
-    image: "quay.io/opstree/redis:v7.0.15"
+    image: "quay.io/opstree/redis:v8.6.2"
     imagePullPolicy: IfNotPresent
     resources:
       {{- toYaml .Values.resources | nindent 6 }}
