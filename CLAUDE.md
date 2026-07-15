@@ -169,9 +169,10 @@ argo_apps/
 ```
 (Shared dependency charts — the ingress edge + the pg-cluster wrapper — live outside this tree in `lib/helm/`.)
 
-The root-of-roots creates the platform root first and waits for it to be Healthy (which aggregates every
-platform app's health) before creating the workloads root. So workloads never reconcile against missing
-CRDs/namespaces on a cold boot; the platform -> workloads ordering is enforced once, here.
+The root-of-roots creates the platform root first (sync-wave 0), then the workloads root (wave 1) ~2s later — it
+does NOT wait for platform health (there is no argoproj.io/Application health gate, on purpose). So the platform
+-> workloads boundary is advisory creation-ordering, not a hard barrier: a workload that races ahead of a
+not-yet-present platform CRD fails its sync and self-converges via unbounded syncPolicy.retry. See 05_gitops.md.
 
 Platform apps keep the numbered convention. The `NN` prefix is the app's sync-wave number, keep three things in
 agreement:
@@ -190,9 +191,10 @@ workload genuinely depends on another workload, it belongs in platform instead.
 
 ### How to choose a wave (platform only)
 
-`sync-wave` orders how the platform root creates its child Application objects: lower runs first, and the root waits
-for a wave to be Synced + Healthy before creating the next. Pick the lowest wave that sits after everything the app
-depends on. (Workloads don't use waves, see above.)
+`sync-wave` orders how the platform root creates its child Application objects: lower runs first (~2s apart). With
+no Application health gate the root does NOT wait for a wave to be Healthy before the next — waves order CREATION
+only, so a later app gets its dependencies' apps applied first but still retries if it races ahead. Pick the lowest
+wave that sits after everything the app depends on. (Workloads don't use waves, see above.)
 
 Current platform waves:
 
@@ -243,12 +245,15 @@ ingress (rendered by the same library) carries its OWN SSO allowlist, independen
 
 ### The one hard rule
 
-Never put a manual-sync (or otherwise perpetually-`OutOfSync`) app at an earlier wave than apps that depend on it. A
-manual app starts OutOfSync and its wave never clears, so the root never creates later-wave apps, self-management stalls.
+Keep every app `automated` (auto-sync) with unbounded retry (`retry.limit: -1` + `refresh: true`). With no
+Application health gate, an OutOfSync/Degraded app no longer stalls later waves or the roots — but auto-sync +
+unbounded retry is the ONLY thing that converges an app on its own: ArgoCD won't re-drive a *failed* revision, yet
+`limit: -1` keeps the within-operation retry re-attempting until the dependency lands. A manual-sync app would
+simply never converge without a human. (This inverts the old rule — waves used to gate on health, so a manual app
+at an early wave stalled everything; that's no longer true.)
 
-This is why Cilium auto-syncs despite being the app that can cut the cluster (and Argo) off its own network: a
-manual Cilium app would start OutOfSync at wave 0 and stall every later wave. It auto-syncs with FULL `selfHeal` +
-`prune` (the same as every leaf), for convenience, knowingly accepting the danger:
+Cilium is the one app that can cut the cluster (and Argo) off its own network, yet it auto-syncs with FULL
+`selfHeal` + `prune` (the same as every leaf), for convenience, knowingly accepting the danger:
 
 - `selfHeal: true` -> an out-of-band break-glass fix (`04_cilium.sh`) IS reverted unless you commit it to git fast.
 - `prune: true` -> a resource/CRD removed from the chart IS cascade-deleted on the next sync.
