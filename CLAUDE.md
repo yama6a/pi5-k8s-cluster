@@ -14,7 +14,9 @@ prefix keeps things in step order at a glance):
 - `lib/helm/` — shared Helm charts consumed as a dependency by other charts (see "Shared charts" below).
 - `argo_apps/` — everything ArgoCD delivers (the two-tree GitOps root; see "ArgoCD apps" below).
 - `Makefile` — a thin dispatcher over `lib/shell/` + the orchestrators; `make help` lists every target.
-- `.env` (repo root, gitignored) — the single source of truth for configurable values + secrets.
+- `versions.env` (repo root, committed) — the shared, renovate-managed version recipe (upstream versions +
+  digest pins). `.env` (repo root, gitignored) — your per-deployment config + secrets (two portions: CONFIG
+  then SECRETS). Both are sourced by `common.sh`; `.env.example` is the committed template for `.env`.
 - `docs/images/` — hardware photos embedded by `docs/01_hardware.md`.
 - `secrets/` — the cluster-credential dir (`talosconfig`, `kubeconfig`, sealed-secrets key), written by `03d`.
   A symlink to an off-repo store, gitignored (`/secrets`); never committed. See "Cluster credentials location".
@@ -49,9 +51,10 @@ All step scripts follow one house style, match it when adding a new one:
 - Idempotent / re-run-safe. Every bootstrap script must be safe to run again (e.g. `helm upgrade --install`,
   re-checking state before acting). Re-running after a partial failure is the normal recovery path.
 - `# ---- knobs ----` block near the top: script-local tunables are plain hardcoded assignments, grouped together.
-  Scripts take no `${VAR:-default}` env-overridable knobs; to change a value, edit it. Shared values (versions, node
-  topology, namespaces, domains, ...) live in the gitignored `.env` (template `.env.example`) instead, see "Shared
-  library & config" below. Secrets (tokens, passwords, OAuth client id/secret) live in that same gitignored `.env`
+  Scripts take no `${VAR:-default}` env-overridable knobs; to change a value, edit it. Shared config values (node
+  topology, domains, ...) live in the gitignored `.env` (template `.env.example`); the version recipe lives in the
+  committed `versions.env`; fixed identifiers that aren't per-deployment config (namespaces, operator names, hardware
+  NIC/disk) are constants in `lib/shell/common.sh`. See "Shared library & config" below. Secrets (tokens, passwords, OAuth client id/secret) live in that same gitignored `.env`
   and are read from it, never prompted at runtime; `lib/shell/common.sh` defaults each to empty so an older `.env` missing
   a key doesn't trip `set -u`. Leaving a secret empty skips the feature it enables (see each key's `.env.example`
   comment).
@@ -65,23 +68,28 @@ All step scripts follow one house style, match it when adding a new one:
 
 ### Shared library & config
 
-Helpers and values each live in exactly one place: the library, plus a gitignored `.env` (with a committed template):
+Helpers and values each live in exactly one place: the library, the committed `versions.env`, plus a gitignored `.env` (with a committed template):
 
 - `lib/shell/common.sh`, sourced near the top of every script (`source "${SCRIPT_DIR}/common.sh"` — every
-  script lives beside it in `lib/shell/`). It self-locates the repo root, loads the gitignored `.env`
-  (dies with a `cp .env.example .env` hint if it's missing), derives the values that can't live in a flat `.env`
+  script lives beside it in `lib/shell/`). It self-locates the repo root, loads the committed `versions.env` (the
+  version recipe) THEN the gitignored `.env`
+  (dies with a `cp .env.example .env` hint if `.env` is missing), derives the values that can't live in a flat file
   (the `CLUSTER_NODES[]` array + `NODES` IP list, `IFACE`, `INSTALL_DISK`, the `*_VERSION` aliases, and the
-  `BUILD_KEY`/`BUILD_DIR`/`OUT_DIR` build-cache paths), and provides: the `say`/`die`/`warn` + `ok`/`bad`/`summary`
+  `BUILD_KEY`/`BUILD_DIR`/`OUT_DIR` build-cache paths), defines the fixed cluster-identifier constants that aren't user
+  config (namespaces, the sealed-secrets controller identifiers, the Pi 5 NIC/disk, the Talos API port, the GHCR host +
+  installer package), and provides: the `say`/`die`/`warn` + `ok`/`bad`/`summary`
   output helpers; `require <tools...>` (preflight, dies with an install hint); `CLUSTER_DIR` + `use_kubeconfig` /
   `assert_api` (the 03d secrets credentials); a dockerized `talosctl()`; and
   `seal_secret <name> <ns> <key> <value> <out>` (used by 07/09). It never sets shell options; each script keeps
   its own `set` line.
-- `.env` (repo root, gitignored) is the single source of truth for the repo's configurable scalar values
-  (versions, node topology, domains, namespaces, ...) **and its secrets** (tokens, passwords, OAuth client
-  id/secret, in a dedicated section). Plain `KEY=value` only, no logic, arrays, or command substitution (those are
-  derived in `lib/shell/common.sh`). `.env.example` is the committed template: copy it to `.env` and edit. Personal/network
-  values (IPs, domains, emails, GHCR user, repo URL) are fake placeholders in the template, and every secret is an
-  **empty** placeholder there (never a real value); the version/digest/identifier recipe is real. Build-machinery
+- `.env` (repo root, gitignored) is the source of truth for the repo's per-deployment scalar config
+  (node topology, domains, ...) **and its secrets** (tokens, passwords, OAuth client id/secret), organized in two
+  portions: a CONFIG block then a SECRETS block. Plain `KEY=value` only, no logic, arrays, or command substitution
+  (those are derived in `lib/shell/common.sh`). Versions live in the committed `versions.env`; fixed identifiers that
+  aren't per-deployment config (namespaces, operator names, hardware NIC/disk, the Talos API port) are constants in
+  `lib/shell/common.sh` — neither is in `.env`. `.env.example` is the committed template: copy it to `.env` and edit.
+  Personal/network values (IPs, domains, emails, GHCR user, repo URL) are fake placeholders in the template, and every
+  secret is an **empty** placeholder there (never a real value); the version/digest recipe in `versions.env` is real. Build-machinery
   internals used by a single script (registry/builder names, the gmake path, the staged-image filename, a step's own
   check expectations) live in that script, not here.
 
