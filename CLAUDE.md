@@ -177,7 +177,7 @@ argo_apps/
 ```
 (Shared dependency charts — the ingress edge + the pg-cluster wrapper — live outside this tree in `lib/helm/`.)
 
-The root-of-roots creates the platform root first (sync-wave 0), then the workloads root (wave 1) ~2s later — it
+The root-of-roots creates the platform root first (sync-wave 0), then the workloads root (wave 1) ~5s later — it
 does NOT wait for platform health (there is no argoproj.io/Application health gate, on purpose). So the platform
 -> workloads boundary is advisory creation-ordering, not a hard barrier: a workload that races ahead of a
 not-yet-present platform CRD fails its sync and self-converges via unbounded syncPolicy.retry. See 05_gitops.md.
@@ -199,7 +199,8 @@ workload genuinely depends on another workload, it belongs in platform instead.
 
 ### How to choose a wave (platform only)
 
-`sync-wave` orders how the platform root creates its child Application objects: lower runs first (~2s apart). With
+`sync-wave` orders how the platform root creates its child Application objects: lower runs first (~5s apart, the
+`ARGOCD_SYNC_WAVE_DELAY` set in `01_argocd` values). With
 no Application health gate the root does NOT wait for a wave to be Healthy before the next — waves order CREATION
 only, so a later app gets its dependencies' apps applied first but still retries if it races ahead. Pick the lowest
 wave that sits after everything the app depends on. (Workloads don't use waves, see above.)
