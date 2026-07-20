@@ -277,7 +277,7 @@ whom, is the **central `domains[].hosts` map** in `04_google_sso/values.yaml`:
 ```yaml
 domains:
   - domain: pontiki.app                          # ONE entry gates both tiers (ops. + app.): cookieDomain/callback are its parent
-    issuer: letsencrypt-staging
+    issuer: letsencrypt-prod
     hosts:
       - host: argocd.ops.pontiki.app             # a platform UI (*.ops.<base>)
         allowlist: [admin@…]
