@@ -235,6 +235,14 @@ ingress (rendered by the same library) carries its OWN SSO allowlist, independen
   network, so drift just auto-corrects. Cilium (wave 0) runs this SAME `prune`+`selfHeal` posture for
   convenience even though it's the one app that CAN cut the cluster off its own network — a deliberately
   accepted risk, called out in `04_networking.md` / `05_gitops.md`.
+- **Every pod-running app carries an explicit `CiliumNetworkPolicy`** unless it's on the deliberately-unpoliced
+  list in `04_networking.md` (infra that can't be policed without risking the cluster's own network: Envoy,
+  vmagent, longhorn, metrics-server, nic-keeper, local-path, vm-operator, cilium/kube-system). Hand-written per
+  chart (`templates/networkpolicy.yaml`), default-deny both ways, rolled out audit-first. Two Cilium gotchas:
+  cross-namespace peers need `matchExpressions: [{key: k8s:io.kubernetes.pod.namespace, operator: Exists}]` (an
+  omitted namespace label — or the empty `{}` selector — is same-namespace-only); and disable any
+  upstream-bundled vanilla `NetworkPolicy` (they default allow-all-egress and Cilium UNIONs them with our CNP,
+  blowing default-deny open — cf. argocd's `global.networkPolicy.create: false`).
 - **Commit `Chart.lock` before an app syncs.** Any wrapper chart with dependencies needs its resolved
   `Chart.lock` committed: ArgoCD's repo-server runs `helm dependency build`, which requires it. Run
   `helm dependency update <chart>` and commit the lock, or the app sits `OutOfSync` with a
