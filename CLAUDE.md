@@ -252,6 +252,13 @@ ingress (rendered by the same library) carries its OWN SSO allowlist, independen
   etc.); instead add a Grafana alert file under `argo_apps/platform/charts/05_grafana/files/alerts/` (auto-globbed).
   Invariant: `kubectl get vmrule -A` stays empty. WATCH chart bumps — the vm-k8s-stack renamed
   `defaultRules.create` → `defaultRules.enabled` and silently ignores the old key. See `09_monitoring.md`.
+- **Roll-forward only — no rollback history.** Recovery is always a git revert re-synced by Argo, never
+  `argocd app rollback` / `kubectl rollout undo`, so retained revision history is dead weight. Every
+  `Application` (`spec.revisionHistoryLimit: 0`) and every first-party workload (Deployment/DaemonSet
+  `spec.revisionHistoryLimit: 0`) sets it; upstream charts set it via their values knob where one exists.
+  The charts that expose NO usable knob (cilium, envoy-gateway, vm-operator, cnpg, longhorn, redis-operator,
+  victoria-logs, + sealed-secrets whose `0` is silently dropped) stay at the default — don't add a postRenderer
+  just for this. Full list + rationale in `05_gitops.md`.
 - **Runbook doc number ≠ sync-wave number.** The top-level `NN_name.md` prefix is *runbook step order*; the
   `argo_apps/**` `NN_` prefix is the *sync-wave*. The two are independent: one doc can cover several argo apps
   at different waves — e.g. `07_ingress.md` documents argo apps `01_envoy_gateway` (wave 1), `02_cert_manager`
