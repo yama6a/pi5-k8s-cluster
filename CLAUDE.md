@@ -129,10 +129,12 @@ Three live here:
   gateway class `eg`, fallback issuer) is hardcoded in the library as a platform invariant, NOT a per-consumer
   value. It renders NO SSO — Google-SSO is applied centrally per domain by `04_google_sso` (one SecurityPolicy per
   domain with per-host allowlists).
-- `lib/helm/pg-cluster/` (`type: application`) — the curated CNPG Postgres wrapper: pins the upstream
-  `cnpg/cluster` chart and pre-bakes all its boilerplate, exposing a workload only the REQUIRED knobs
+- `lib/helm/pg-cluster/` (`type: application`) — the curated CNPG Postgres wrapper: renders the CNPG CRs
+  directly (the `Cluster` + `PodMonitor`, and when backups are on the Barman `ObjectStore` + `ScheduledBackup`),
+  pins NO upstream chart, and pre-bakes all the boilerplate, exposing a workload only the REQUIRED knobs
   (`type`/`instances`/`resources`) + a few defaulted ones. Consumed by each Postgres-backed workload
-  (`sample_workload`).
+  (`sample_workload`). (It used to wrap the upstream `cnpg/cluster` chart, but that forced a vendored +
+  hand-patched tgz — see the ObjectStore-hook note below.)
 - `lib/helm/redis-instance/` (`type: application`) — the curated OpsTree Redis wrapper: renders one standalone
   `Redis` CR + its ServiceMonitor + a default-deny CiliumNetworkPolicy, exposing a workload four REQUIRED knobs
   (`name`/`resources`/`allowedClients`/`persistence` — the latter true=durable Retain+AOF | false=ephemeral
@@ -146,20 +148,22 @@ Convention for a shared chart + its consumers:
 - A **`type: library`** chart (ingress) pins no upstream and ships no `Chart.lock` (it renders nothing itself;
   its `values.yaml` holds the defaults every consumer inherits — merged under the dependency-name key, e.g.
   `ingress`, the repo's usual "config under the dependency name" convention).
-- A **`type: application`** shared chart comes in two flavours here. **pg-cluster** must pin a real upstream
-  dependency (`cnpg/cluster`), so it can't be a library: it DOES ship a committed `Chart.lock` AND commits its
-  vendored `charts/*.tgz` (overriding the usual tgz gitignore) — a `file://` consumer's `helm dependency build`
-  won't fetch that transitive REMOTE dependency over the network, so it has to travel in git (see its `.gitignore`).
-  **redis-instance** is `type: application` only because it must render manifests when included as a dependency (a
-  library renders nothing of its own), but it pins NO upstream — it templates the `Redis` CR directly — so like a
-  library it ships no `Chart.lock` and no vendored tgz. Rule of thumb: *wrap an upstream chart* → the pg-cluster
-  apparatus (lock + vendored tgz); *render CRs an operator defines* → the redis-instance shape (neither).
+- A **`type: application`** shared chart is used here for charts that must render manifests when included as a
+  dependency (a library renders nothing of its own). Both **pg-cluster** and **redis-instance** are this flavour
+  and pin NO upstream — they template the operator CRs directly (`Cluster`/`ObjectStore`/…, `Redis`) — so like a
+  library they ship no `Chart.lock` and no vendored tgz. Rule of thumb: *render CRs an operator defines* → this
+  shape (no lock, no tgz). NEVER commit a `charts/*.tgz`: a chart that genuinely wraps an upstream remote chart as
+  a `file://`-transitive dependency (none currently do) would need the blob vendored because `helm dependency
+  build` won't fetch a transitive remote dep — but that path forces manual re-vendoring that Renovate can't own,
+  so prefer rendering the CRs directly instead. pg-cluster used to wrap `cnpg/cluster` and paid exactly that
+  cost (a vendored + hand-patched tgz); it now renders the CRs itself. See docs/13_backups.md.
 - A consumer declares either as a **local `file://` dependency** (`repository: "file://../../../../lib/helm/<name>"`),
   commits the resulting `Chart.lock` (run `helm dependency update`), and gitignores its own `charts/*.tgz`. ArgoCD's
   repo-server runs `helm dependency build`, which resolves the relative path inside the repo checkout — so the lock
   MUST be committed.
 - A consumer's whole template is often one line (`{{ include "ingress.render" . }}`); config is all values
-  (pg-cluster renders via its dependency, so a consumer needs no template for it at all — just the values block).
+  (pg-cluster and redis-instance render their own CRs, so a consumer needs no template for them at all — just the
+  values block).
 
 ## ArgoCD apps: two trees + naming & sync-wave convention
 
