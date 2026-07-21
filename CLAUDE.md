@@ -246,6 +246,12 @@ ingress (rendered by the same library) carries its OWN SSO allowlist, independen
   [resources-finalizer.argocd.argoproj.io]`, so removing or renaming an app cascade-deletes its resources
   instead of orphaning them (`prune` is within-app; it does NOT cascade on Application deletion). Add it to any
   new app. See `05_gitops.md` ("Removing or renaming an app").
+- **Alerting is Grafana-only; the cluster carries NO rule CRs.** `vmalert`/`alertmanager` are off, so any
+  `PrometheusRule`/`VMRule` is inert (nothing evaluates it) — recording rules included. Never enable a
+  chart's bundled alerts (`defaultRules`, `prometheusRule.enabled`, `...monitoring.prometheusRule.enabled`,
+  etc.); instead add a Grafana alert file under `argo_apps/platform/charts/05_grafana/files/alerts/` (auto-globbed).
+  Invariant: `kubectl get vmrule -A` stays empty. WATCH chart bumps — the vm-k8s-stack renamed
+  `defaultRules.create` → `defaultRules.enabled` and silently ignores the old key. See `09_monitoring.md`.
 - **Runbook doc number ≠ sync-wave number.** The top-level `NN_name.md` prefix is *runbook step order*; the
   `argo_apps/**` `NN_` prefix is the *sync-wave*. The two are independent: one doc can cover several argo apps
   at different waves — e.g. `07_ingress.md` documents argo apps `01_envoy_gateway` (wave 1), `02_cert_manager`
