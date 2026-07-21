@@ -40,6 +40,7 @@ Comment style (hard rules):
 - Comment the WHY and WHAT, but ONLY when it's not self-evident. Self-evident code gets no comment.
 - Keep them SHORT. A half-sentence on the SAME line as the thing it documents is ideal. Two lines is usually already too much; paragraphs/walls of text NEVER.
 - Bullets over sentences. Don't care about grammar, punctuation, or full sentences — shorter is better. Nobody reads walls of text.
+- NEVER restate a version number in markdown or comments — point at where it lives (`versions.env`, or the chart's `Chart.yaml`), e.g. "bump X in `versions.env`", not the digits. And NEVER explain what a version did/changed ("10.0.0 flipped X", "since 1.15…"): we only ever roll forward, so version history is dead weight that also goes stale. State the CURRENT why, not the diff. The ONLY version worth naming is a forward constraint on future bumps — a floor ("needs ≥X") or ceiling ("broken in X → pin <X").
 
 ## Bootstrap scripts
 
