@@ -1,6 +1,6 @@
 dependencies:
 - name: rabbitmq-cluster-operator
   repository: oci://ghcr.io/cloudpirates-io/helm-charts
-  version: 0.4.2
-digest: sha256:31cf137297a8efed32dcabf93d8cc8bf5c0925855e25270e4c79c89b5ede4ca3
-generated: "2026-07-20T14:35:49.146634839Z"
+  version: 0.5.0
+digest: sha256:5b5021526cead79f1db5896bf9cbcc01b35963f46f2f5047e0248abb3b658e39
+generated: "2026-07-24T03:47:51.380200113Z"
