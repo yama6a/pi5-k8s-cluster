@@ -5,14 +5,14 @@
 
 # ntfy server (binwiederhier/ntfy), multi-arch incl. arm64 (resolves to arm64 on the Pi 5). Digest-pinned to a
 # manifest LIST; Renovate's helm-values manager keeps tag+digest fresh (same style as 02_nic_keeper's image).
-image: "binwiederhier/ntfy:v2.26.0@sha256:a6d335064ae927c4dbef118e1fa39656b3d2e01472b2a82af5915d5cebfe815f"
+image: "binwiederhier/ntfy:v2.26.3@sha256:081b53dbb20674fcfe05fdb4eb8af9036a2645ef979543d16f7f80803af467b1"
 
 # Public base URL — MUST match the ntfy host in 06_platform_ingress (the Android app + correct links need it).
 baseUrl: "https://ntfy.ops.pontiki.app"
 
 # Auth + cache SQLite DBs live on this PVC (/var/lib/ntfy). Retain class (02_longhorn): survives an accidental
 # delete so the seeded users/token aren't lost; 10_ntfy_auth.sh re-creates them idempotently if it ever is.
-# 1Gi is plenty (a handful of users + a 12h message cache).
+# 1Gi is plenty (a handful of users + a 1-week message cache — a few thousand tiny alert rows).
 storage:
   storageClassName: longhorn-r2-retained   # Retain r2 (02_longhorn): same class 05_victoria_logs uses
   size: 1Gi
