@@ -121,15 +121,17 @@ the lock.
 
 Charts consumed as a dependency by other charts (rather than by ArgoCD directly) live under `lib/helm/`,
 outside the `argo_apps/` GitOps trees — they belong to neither tree because charts in both trees consume them.
-Three live here:
+Four live here (all `type: application`, they render their CRs directly; none is a `type: library`):
 
-- `lib/helm/ingress/` (`type: library`) — renders the ingress edge (per host a Gateway + HTTPRoute +
-  ReferenceGrant, one multi-SAN Certificate per ingress) for a list of ingresses; the platform-ingress chart, each
-  workload chart, and `04_google_sso` (its callback hosts) all consume it. Consumers configure ONLY their own
-  `ingresses[]` (per-ingress the only cert knob is `issuer`); the cluster wiring (gateway namespace `gateway`,
-  gateway class `eg`, fallback issuer) is hardcoded in the library as a platform invariant, NOT a per-consumer
-  value. It renders NO SSO — Google-SSO is applied centrally per domain by `04_google_sso` (one SecurityPolicy per
-  domain with per-host allowlists).
+- `lib/helm/ingress/` (`type: application`): renders the ingress edge (per host a Gateway + HTTPRoute +
+  ReferenceGrant, one multi-SAN Certificate per ingress) directly from a consumer's `ingresses[]`, so a consumer
+  (the platform-ingress chart, each workload chart) needs NO template of its own, just the dependency + values.
+  `04_google_sso` also depends on it but for its callback hosts calls the `ingress.renderIngress` named template
+  inline from its OWN templates (named templates are global across the chart tree), interleaved with its
+  SecurityPolicy. Consumers configure ONLY their own `ingresses[]` (per-ingress the only cert knob is `issuer`);
+  the cluster wiring (gateway namespace `gateway`, gateway class `eg`, fallback issuer) is hardcoded in the chart
+  as a platform invariant, NOT a per-consumer value. It renders NO SSO: Google-SSO is applied centrally per domain
+  by `04_google_sso` (one SecurityPolicy per domain with per-host allowlists).
 - `lib/helm/pg-cluster/` (`type: application`) — the curated CNPG Postgres wrapper: renders the CNPG CRs
   directly (the `Cluster` + `PodMonitor`, and when backups are on the Barman `ObjectStore` + `ScheduledBackup`),
   pins NO upstream chart, and pre-bakes all the boilerplate, exposing a workload only the REQUIRED knobs
@@ -145,17 +147,26 @@ Three live here:
   the image repo + exporter stay pinned in the chart). A single standalone instance (no HA/replication/backups). The two Longhorn
   classes it selects between are shipped by the platform's `03_redis_operator` app (wave 3). Aliased once per instance
   (like pg-cluster) so a workload can run one or more. See `12_redis.md`.
+- `lib/helm/rabbitmq-topology/` (`type: application`): renders a workload's messaging topology directly against
+  the ONE shared broker (`03_rabbitmq`): one `User` (operator-GENERATED credentials), the Exchanges/Queues/Bindings
+  it owns (+ a `<queue>.dlx`/`<queue>.dlq` dead-letter pair per consumer queue), and ONE aggregated `Permission`.
+  A consumer just supplies a `rabbitmq-topology:` values block (no template of its own). It encodes the two
+  patterns as intent: publishEvents/subscribeEvents (event topic, 1 publisher : N consumers) and
+  consumeCommands/sendCommands (command topic, N publishers : 1 consumer). Broker/vhost (`rabbitmq`/`apps`) are
+  hardcoded invariants, rejected as overrides. See `11_messaging.md`.
 
 Convention for a shared chart + its consumers:
 
-- A **`type: library`** chart (ingress) pins no upstream and ships no `Chart.lock` (it renders nothing itself;
-  its `values.yaml` holds the defaults every consumer inherits — merged under the dependency-name key, e.g.
-  `ingress`, the repo's usual "config under the dependency name" convention).
-- A **`type: application`** shared chart is used here for charts that must render manifests when included as a
-  dependency (a library renders nothing of its own). Both **pg-cluster** and **redis-instance** are this flavour
-  and pin NO upstream — they template the operator CRs directly (`Cluster`/`ObjectStore`/…, `Redis`) — so like a
-  library they ship no `Chart.lock` and no vendored tgz. Rule of thumb: *render CRs an operator defines* → this
-  shape (no lock, no tgz). NEVER commit a `charts/*.tgz`: a chart that genuinely wraps an upstream remote chart as
+- Every shared chart here is **`type: application`** and pins NO upstream, so each renders its own manifests when
+  included as a dependency and ships no `Chart.lock` and no vendored tgz. **pg-cluster**/**redis-instance** template
+  the operator CRs directly (`Cluster`, `ObjectStore`, `Redis`), **rabbitmq-topology** templates the messaging CRs
+  (`User`/`Exchange`/`Queue`/`Binding`/`Permission`), **ingress** templates the first-party edge
+  (Gateway/HTTPRoute/Certificate/ReferenceGrant). Each chart's `values.yaml` holds the defaults every consumer
+  inherits, merged under the dependency-name key (the repo's usual "config under the dependency name" convention).
+  Rule of thumb: render first-party or CR manifests from values, no lock, no tgz. (A **`type: library`** chart, which
+  renders nothing of its own and is pulled in by a consumer's `{{ include }}`, is a valid Helm shape but none is used
+  here anymore: rabbitmq-topology and ingress were both libraries and were converted to application charts so their
+  templates read as plain manifests like pg/redis.) NEVER commit a `charts/*.tgz`: a chart that genuinely wraps an upstream remote chart as
   a `file://`-transitive dependency (none currently do) would need the blob vendored because `helm dependency
   build` won't fetch a transitive remote dep — but that path forces manual re-vendoring that Renovate can't own,
   so prefer rendering the CRs directly instead. pg-cluster used to wrap `cnpg/cluster` and paid exactly that
@@ -164,9 +175,10 @@ Convention for a shared chart + its consumers:
   commits the resulting `Chart.lock` (run `helm dependency update`), and gitignores its own `charts/*.tgz`. ArgoCD's
   repo-server runs `helm dependency build`, which resolves the relative path inside the repo checkout — so the lock
   MUST be committed.
-- A consumer's whole template is often one line (`{{ include "ingress.render" . }}`); config is all values
-  (pg-cluster and redis-instance render their own CRs, so a consumer needs no template for them at all — just the
-  values block).
+- The shared charts (pg-cluster, redis-instance, rabbitmq-topology, ingress) all render from values, so a consumer
+  needs NO template for them at all, just the values block. The one exception is `04_google_sso`, which
+  `{{ include "ingress.renderIngress" ... }}` inline because it interleaves callback edges with its own
+  SecurityPolicy.
 
 ## ArgoCD apps: two trees + naming & sync-wave convention
 
@@ -225,10 +237,11 @@ Current platform waves:
 | `6`  | platform-ingress                                       | the platform UIs' EDGES (argocd/grafana/vmui/vlogs): per-host Gateway + HTTPRoute + ReferenceGrant + one shared multi-SAN Certificate. No SSO here — google-sso (wave 4) gates these routes. Last so all backends (argocd wave 1, monitoring wave 5) exist. |
 
 Every ingress edge (per host a Gateway + HTTPRoute + ReferenceGrant, one multi-SAN Certificate per ingress) is
-rendered by ONE shared Helm library chart, `lib/helm/ingress/` (see the wrapper-chart section). The
-platform-ingress app, each workload chart, and `04_google_sso` (its callback hosts) consume it. SSO is NOT an
-edge concern — it's central per domain in `04_google_sso` (one SecurityPolicy with per-host allowlists), so a
-workload's ingress is just plain edges and its hosts are gated by listing them in `04_google_sso` domains[].hosts.
+rendered by ONE shared Helm chart, `lib/helm/ingress/` (`type: application`; see the wrapper-chart section). The
+platform-ingress app and each workload chart consume it as pure values (no template); `04_google_sso` calls its
+`ingress.renderIngress` helper inline for its callback hosts. SSO is NOT an edge concern: it's central per domain
+in `04_google_sso` (one SecurityPolicy with per-host allowlists), so a workload's ingress is just plain edges and
+its hosts are gated by listing them in `04_google_sso` domains[].hosts.
 
 Workloads (`sample-workload`, the sample app + its CNPG Postgres + its open/SSO ingress) carry no wave; they live
 in the workloads tree, which the root-of-roots only creates after the entire platform above is Healthy. A workload's
