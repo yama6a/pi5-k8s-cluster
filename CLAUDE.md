@@ -109,8 +109,11 @@ Every app ArgoCD manages is a thin wrapper Helm chart under its tree's `charts/`
 
 - `Chart.yaml` pins the upstream chart as a dependency (the version lives here, nowhere else).
 - `values.yaml` holds all configuration.
-- `Chart.lock` pins the resolved dependency and must be committed (ArgoCD's repo-server runs `helm dependency build`,
-  which requires it; a missing/stale lock breaks sync).
+- `Chart.lock` is committed ONLY for a chart with a REMOTE dependency (the platform operator/CRD/stack charts):
+  there the lock pins the upstream version + digest against drift, and ArgoCD's repo-server (`helm dependency
+  build`) needs it in sync. A chart whose deps are ALL `file://` (in-repo) is LOCKLESS and gitignores
+  `Chart.lock`: the git commit already fixes the deps, so a lock pins nothing and only breaks sync when a
+  hand-edit makes it stale. See the shared-chart consumer rule below.
 
 The imperative bootstrap script and ArgoCD consume the same chart, release name, and namespace, so when Argo
 adopts the running release it sees it in-sync: no pod churn, no fighting. No versions or values are ever hardcoded in
@@ -174,10 +177,12 @@ Convention for a shared chart + its consumers:
   build` won't fetch a transitive remote dep — but that path forces manual re-vendoring that Renovate can't own,
   so prefer rendering the CRs directly instead. pg-cluster used to wrap `cnpg/cluster` and paid exactly that
   cost (a vendored + hand-patched tgz); it now renders the CRs itself. See docs/13_backups.md.
-- A consumer declares either as a **local `file://` dependency** (`repository: "file://../../../../lib/helm/<name>"`),
-  commits the resulting `Chart.lock` (run `helm dependency update`), and gitignores its own `charts/*.tgz`. ArgoCD's
-  repo-server runs `helm dependency build`, which resolves the relative path inside the repo checkout — so the lock
-  MUST be committed.
+- A consumer declares a **local `file://` dependency** (`repository: "file://../../../../lib/helm/<name>"`) and
+  gitignores BOTH its `charts/*.tgz` AND its `Chart.lock`. With only `file://` deps there is nothing remote to
+  pin, so no lock is committed: ArgoCD's repo-server (`helm dependency build`) resolves the relative path inside
+  the checkout, falling back to resolving from `Chart.yaml` when no lock is present. Committing a lock here buys
+  nothing and breaks sync the moment a hand-edit drifts it. (Remote-dep charts DO keep a committed lock;
+  `make fix-chart-locks` regenerates a stale one.)
 - The shared charts (pg-cluster, redis-instance, rabbitmq-topology, ingress) all render from values, so a consumer
   needs NO template for them at all, just the values block. The one exception is `04_google_sso`, which
   `{{ include "ingress.renderIngress" ... }}` inline because it interleaves callback edges with its own
@@ -266,10 +271,11 @@ ingress (rendered by the same library) carries its OWN SSO allowlist, independen
   omitted namespace label — or the empty `{}` selector — is same-namespace-only); and disable any
   upstream-bundled vanilla `NetworkPolicy` (they default allow-all-egress and Cilium UNIONs them with our CNP,
   blowing default-deny open — cf. argocd's `global.networkPolicy.create: false`).
-- **Commit `Chart.lock` before an app syncs.** Any wrapper chart with dependencies needs its resolved
-  `Chart.lock` committed: ArgoCD's repo-server runs `helm dependency build`, which requires it. Run
-  `helm dependency update <chart>` and commit the lock, or the app sits `OutOfSync` with a
-  `helm dependency build` error.
+- **Commit `Chart.lock` only for a chart with a REMOTE dependency.** Those (the platform operator/CRD/stack
+  charts) need their resolved `Chart.lock` committed and in sync: ArgoCD's repo-server runs `helm dependency
+  build`, and a missing/stale lock there breaks sync (`make fix-chart-locks` regenerates a stale one). A
+  `file://`-only chart is LOCKLESS (gitignored): repo-server resolves the in-repo paths at render time, so
+  there is no lock to commit or to go stale.
 - **Push before you expect a sync.** ArgoCD reconciles the pushed git *remote*, not your working tree.
   Commit + push `argo_apps/**` (incl. `Chart.lock`) or the app reports `ComparisonError: path does not exist`.
 - **Every Application carries the `resources-finalizer`.** The root-of-roots, both roots, and every
