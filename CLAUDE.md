@@ -152,11 +152,12 @@ Four live here (all `type: application`, they render their CRs directly; none is
   ObjectStore-hook note below.)
 - `lib/helm/redis-instance/` (`type: application`), the curated OpsTree Redis wrapper: renders one standalone
   `Redis` CR + its ServiceMonitor + a default-deny CiliumNetworkPolicy, exposing a workload five REQUIRED knobs
-  (`name`/`redisVersion`/`resources`/`allowedClients`/`persistence`; the last is true=durable Retain+AOF | false=ephemeral
+  (`name`/`redisVersion`/`resources`/`allowedClients`/`persistence`/`deletionProtection`; persistence is true=durable AOF+S3-backup | false=ephemeral
   Delete+RDB-only, no default) plus optional `alertCritical` + a create-time `initialFixedDiskSize`; everything else (image repo, exporter, maxmemory,
   non-root, no-auth) is hardcoded. `redisVersion` is the Redis server version, owned per-workload (no shared default;
-  the image repo + exporter stay pinned in the chart). A single standalone instance (no HA/replication/backups). The two Longhorn
-  classes it selects between are shipped by the platform's `03_redis_operator` app (wave 3). Aliased once per instance
+  the image repo + exporter stay pinned in the chart). A single standalone instance (no HA/replication). Every PVC uses
+  the one Longhorn class `longhorn-r2-ephemeral` (reclaim Delete), shipped by `02_longhorn`: reclaim is not the prune
+  guard, `deletionProtection` is. Durable instances get off-cluster S3 RDB backups. Aliased once per instance
   (like pg-cluster) so a workload can run one or more. See `12_redis.md`.
 - `lib/helm/rabbitmq-topology/` (`type: application`): renders a workload's messaging topology directly against
   the ONE shared broker (`03_rabbitmq`): one `User` (operator-GENERATED credentials), the Exchanges/Queues/Bindings
@@ -244,7 +245,7 @@ Current platform waves:
 | `0`  | cilium, prometheus-operator-crds, vm-operator-crds     | the CNI (underpins all pod networking), plus the monitoring CRDs everything else's ServiceMonitors land on. |
 | `1`  | argocd, envoy-gateway, vm-operator                     | need the CNI; argocd adopts itself, envoy-gateway owns the Gateway API CRDs (before cert-manager) + the `eg` class. |
 | `2`  | cert-manager, sealed-secrets, longhorn, local-path-provisioner, nic-keeper, cnpg-operator | independent leaves after the platform (CNI + engine) is in place. |
-| `3`  | gateway, redis-operator                                | the shared :80 Gateway + ClusterIssuers (needs the `eg` class + cert-manager); plus the OpsTree Redis operator + its two Longhorn StorageClasses (longhorn-redis-persistent/ephemeral). redis-operator sits at 3 (not 2, where operators usually go) because its bundled StorageClasses use Longhorn's provisioner; webhook off so no cert-manager dep; per-workload `Redis` via lib/helm/redis-instance. |
+| `3`  | gateway, redis-operator                                | the shared :80 Gateway + ClusterIssuers (needs the `eg` class + cert-manager); plus the OpsTree Redis operator. The Longhorn class every redis instance uses (`longhorn-r2-ephemeral`) belongs to `02_longhorn`, NOT here. redis-operator only needs the CNI, so wave 2 would do; it stays at 3 to avoid renumbering (the prefix is treated as stable). Webhook off, so no cert-manager dep; per-workload `Redis` via lib/helm/redis-instance. |
 | `4`  | google-sso                                             | CENTRAL Google-SSO: one SecurityPolicy per domain (per-host allowlists, matched by `:authority`) that targetRefs the app routes + the shared callback host google-sso.<domain> + the sealed OAuth secret. |
 | `5`  | grafana, victoria-logs, vm-k8s-stack                   | the monitoring stack (workloads only now); their UIs are exposed by the platform-ingress app at wave 6. |
 | `6`  | platform-ingress                                       | the platform UIs' EDGES (argocd/grafana/vmui/vlogs): per-host Gateway + HTTPRoute + ReferenceGrant + one shared multi-SAN Certificate. No SSO here — google-sso (wave 4) gates these routes. Last so all backends (argocd wave 1, monitoring wave 5) exist. |
