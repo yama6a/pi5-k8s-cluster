@@ -132,18 +132,21 @@ Four live here (all `type: application`, they render their CRs directly; none is
   the cluster wiring (gateway namespace `gateway`, gateway class `eg`, fallback issuer) is hardcoded in the chart
   as a platform invariant, NOT a per-consumer value. It renders NO SSO: Google-SSO is applied centrally per domain
   by `04_google_sso` (one SecurityPolicy per domain with per-host allowlists).
-- `lib/helm/pg-cluster/` (`type: application`) — the curated CNPG Postgres wrapper: renders the CNPG CRs
-  directly (the `Cluster` + `PodMonitor`, and when backups are on the Barman `ObjectStore` + `ScheduledBackup`),
-  pins NO upstream chart, and pre-bakes all the boilerplate, exposing a workload only the REQUIRED knobs
-  (`type`/`imageTag`/`instances`/`resources`) + a few defaulted ones. `imageTag` is the Postgres version, owned
-  per-workload (each consumer pins its own; no shared default in the library). Consumed by each Postgres-backed workload
-  (`sample_workload`). (It used to wrap the upstream `cnpg/cluster` chart, but that forced a vendored +
-  hand-patched tgz — see the ObjectStore-hook note below.)
-- `lib/helm/redis-instance/` (`type: application`) — the curated OpsTree Redis wrapper: renders one standalone
+- `lib/helm/pg-cluster/` (`type: application`), the curated CNPG Postgres wrapper: renders the CNPG CRs
+  directly (the `Cluster` + `PodMonitor` + a default-deny CiliumNetworkPolicy pair, and when backups are on the
+  Barman `ObjectStore` + `ScheduledBackup`), pins NO upstream chart, and pre-bakes all the boilerplate, exposing a
+  workload a FLAT set of REQUIRED knobs (`name`/`postgresVersion`/`highAvailability`/`resources`/`allowedClients`)
+  + optional `alertCritical` and a few defaulted ones. Postgres only, no postgis: the image repo is fixed and only
+  `postgresVersion` (the tag) varies, owned per-workload. `highAvailability` is one bool: true = 2 instances + PDB +
+  switchover, false = single instance (PDB off, in-place restart); there is no separate
+  instances/enablePDB/primaryUpdateMethod knob. Consumed by each Postgres-backed workload (`sample_user_manager`).
+  (It used to wrap the upstream `cnpg/cluster` chart, but that forced a vendored + hand-patched tgz; see the
+  ObjectStore-hook note below.)
+- `lib/helm/redis-instance/` (`type: application`), the curated OpsTree Redis wrapper: renders one standalone
   `Redis` CR + its ServiceMonitor + a default-deny CiliumNetworkPolicy, exposing a workload five REQUIRED knobs
-  (`name`/`imageTag`/`resources`/`allowedClients`/`persistence`; the last is true=durable Retain+AOF | false=ephemeral
-  Delete+RDB-only, no default) plus an optional create-time `initialFixedDiskSize`; everything else (image repo, exporter, maxmemory,
-  non-root, no-auth) is hardcoded. `imageTag` is the Redis server version, owned per-workload (no shared default;
+  (`name`/`redisVersion`/`resources`/`allowedClients`/`persistence`; the last is true=durable Retain+AOF | false=ephemeral
+  Delete+RDB-only, no default) plus optional `alertCritical` + a create-time `initialFixedDiskSize`; everything else (image repo, exporter, maxmemory,
+  non-root, no-auth) is hardcoded. `redisVersion` is the Redis server version, owned per-workload (no shared default;
   the image repo + exporter stay pinned in the chart). A single standalone instance (no HA/replication/backups). The two Longhorn
   classes it selects between are shipped by the platform's `03_redis_operator` app (wave 3). Aliased once per instance
   (like pg-cluster) so a workload can run one or more. See `12_redis.md`.
