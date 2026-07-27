@@ -114,6 +114,11 @@ Every app ArgoCD manages is a thin wrapper Helm chart under its tree's `charts/`
   build`) needs it in sync. A chart whose deps are ALL `file://` (in-repo) is LOCKLESS and gitignores
   `Chart.lock`: the git commit already fixes the deps, so a lock pins nothing and only breaks sync when a
   hand-edit makes it stale. See the shared-chart consumer rule below.
+- A first-party chart's OWN `version:` field is inert and stays `0.1.0` forever (marked inline `# local
+  chart, never bump version`): nothing publishes these to a registry, ArgoCD renders from the git path, and
+  every consumer pins the `file://` dep at `version: "*"`. NEVER bump it (a bump changes nothing and only
+  churns diffs). The only version that moves is the upstream *dependency* version in `dependencies:` (+ its
+  `Chart.lock`).
 
 The imperative bootstrap script and ArgoCD consume the same chart, release name, and namespace, so when Argo
 adopts the running release it sees it in-sync: no pod churn, no fighting. No versions or values are ever hardcoded in
