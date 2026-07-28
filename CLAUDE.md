@@ -31,16 +31,58 @@ sub-phases (`03a_talos_image_builder` ... `03g_k8s_upgrade`).
 The `docs/*.md` holds the why; the scripts stay thin. When documenting a decision or trade-off, it goes in the
 step's `docs/*.md`, not in code comments and not here. This file is only for conventions that span the whole repo.
 
-Always record the reason for a non-obvious setting or decision. Any value, flag, or knob whose purpose isn't
-self-evident gets a short why next to it: the step's `.md` for narrative decisions, or an inline comment for a
-config/`values.yaml` setting (see the existing comments in the wrapper charts' `values.yaml` for the expected style).
-A future reader should never have to guess why a non-default value is what it is.
+Every non-obvious reason must exist somewhere, but `docs/NN_*.md` is its DEFAULT home. An inline comment is only
+for a reason that belongs to ONE line and that someone editing that line would otherwise miss.
 
 Comment style (hard rules):
+- Default is ZERO comments. The code, the key name, the file's path, and the error message beside it ARE the
+  documentation. A comment is an exception you justify, not a habit.
 - Comment the WHY and WHAT, but ONLY when it's not self-evident. Self-evident code gets no comment.
 - Keep them SHORT. A half-sentence on the SAME line as the thing it documents is ideal. Two lines is usually already too much; paragraphs/walls of text NEVER.
-- Bullets over sentences. Don't care about grammar, punctuation, or full sentences — shorter is better. Nobody reads walls of text.
-- NEVER restate a version number in markdown or comments — point at where it lives (`versions.env`, or the chart's `Chart.yaml`), e.g. "bump X in `versions.env`", not the digits. And NEVER explain what a version did/changed ("10.0.0 flipped X", "since 1.15…"): we only ever roll forward, so version history is dead weight that also goes stale. State the CURRENT why, not the diff. The ONLY version worth naming is a forward constraint on future bumps — a floor ("needs ≥X") or ceiling ("broken in X → pin <X").
+- Bullets over sentences. Don't care about grammar, punctuation, or full sentences. Shorter is better. Nobody reads walls of text.
+- NEVER restate a version number in markdown or comments. Point at where it lives (`versions.env`, or the chart's `Chart.yaml`): "bump X in `versions.env`", not the digits. And NEVER explain what a version did or changed ("10.0.0 flipped X", "since 1.15"): we only ever roll forward, so version history is dead weight that also goes stale. State the CURRENT why, not the diff. The ONLY version worth naming is a forward constraint on future bumps: a floor ("needs >=X") or a ceiling ("broken in X, pin <X").
+
+Earns a comment (about the only cases):
+- An outside constraint that explains a weird construction: `RE2 has no negative lookahead, so stamp then drop`.
+- A value that looks wrong, dummy, or arbitrary: `size: 45Gi # NO-OP under local-path, but the CR requires it`.
+- A footgun for whoever edits THAT line next: `# PDB on a single instance would block node upgrades`.
+- A non-default picked over the upstream default, phrased as the CURRENT reason: `# default was zone, we have none`.
+- A coupling invisible from here (another chart, the script that writes this file, an operator-injected label).
+- A manual procedure or ordering: `# to delete: set false, push, let Argo sync, THEN remove in a follow-up commit`.
+
+Never a comment:
+- Restating the line. `name` is the name, `enabled: false` is off.
+- Teaching the tool. Assume Helm/Kubernetes/bash/Terraform fluency. No "a library chart renders nothing", no
+  "default-deny means ...".
+- History. What it used to be, what an upstream bug did, what we migrated off, why the old approach failed. We
+  only roll forward: state the CURRENT reason or say nothing.
+- Anything an adjacent message already says: a Helm `fail`/`required`, a `die`/`warn` string, a Terraform
+  `error_message`, a `description`. Write it ONCE, in the message.
+- Rationale, trade-offs, alternatives considered, decision records. Those live in `docs/NN_*.md`.
+- Counts and measurements ("~848 series", "~90 GUCs"). Stale on arrival and they change nothing.
+- Cross-reference schemes between comments ("(c2), symmetric with (h2)"). Every comment stands alone.
+- Doc pointers everywhere. At most ONE `See docs/NN_x.md` per file, at the spot with a real runbook.
+
+Form:
+- Trailing on the same line beats a block above it. A block above is for a whole file or a whole template.
+- File header, when it earns one at all: ONE line saying what the file renders/does. Not an abstract, not a
+  feature list, not the file's interface.
+- Attach it to the exact line it's about, not to the block that line sits in.
+- Group with a blank line, not a comment banner (`# ---- knobs ----` in `lib/shell/` is the one exception).
+- Show the result instead of describing it: `# s3://<bucket>/cnpg/<ns>/<name>/{wals,base}` beats a sentence.
+
+Per file type:
+- `values.yaml` / `.env.example` / `variables.tf` are the API, so every knob gets ONE column-aligned trailing
+  comment: `REQUIRED|OPTIONAL: (type) allowed values, or an e.g.`. Defaulted knobs nobody tunes get nothing
+  (collapse them, e.g. flow-style YAML). The why goes to `docs/`.
+- Helm templates: one-line header at most. A `_helpers.tpl` define gets one line or nothing; a one-line define
+  gets nothing.
+- `Chart.yaml`: `description` is ONE line. Not the place for the chart's interface, its knobs, or its design.
+- `lib/shell/`: the `die`/`warn`/`say` string IS the comment. One trailing comment per non-obvious knob. Never a
+  banner over a function, never a narration of the pipeline below it.
+- Terraform: a one-line `description` on variables/outputs instead of a comment above them; comment only
+  non-obvious argument values.
+- `docs/*.md`: where the WHY belongs, and still fragments, bullets, and tables. Never paragraphs.
 
 ## Bootstrap scripts
 
