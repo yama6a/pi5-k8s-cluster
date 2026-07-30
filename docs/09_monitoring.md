@@ -98,17 +98,42 @@ and disaster recovery are in [13_backups.md](13_backups.md).
 Retention has ample PVC headroom, so the goal is dropping data that never gets charted or alerted, not avoiding
 overflow. Exact drops and reasons live as comments where the config does.
 
-Metrics: vmagent's `globalScrapeMetricRelabelConfigs` is the "drop everywhere regardless of job" list, and
-per-target `metricRelabelConfigs` handle single-job families like the apiserver and etcd histograms and the
-rabbitmq broker. Two exporter families are dropped globally: the RabbitMQ Erlang runtime internals and the
-redis-exporter per-command latency buckets. Neither is charted or alerted. `lib/helm/pg-cluster` keeps only
-`cnpg_pg_settings_setting{name="max_connections"}`, which the connection-saturation alert reads, and drops the
-rest of the per-setting config dump. Alerting on another Postgres setting means widening that keep-list.
+- **Check every namespace before adding a drop.** A metric can be charted by a `grafana_dashboard` or
+  `grafana_alert` ConfigMap in ANY namespace: the sidecar runs `searchNamespace: ALL`, and cilium and cnpg ship
+  dashboards from their own. Missing those breaks a panel you never saw.
+- **Where a drop goes.** `globalScrapeMetricRelabelConfigs` for anything many jobs emit, per-target
+  `metricRelabelConfigs` for single-job families like the apiserver's view of etcd.
+- **veth churn is the only unbounded growth.** Cilium's `lxc<random>` names never repeat, so every pod restart
+  mints permanent new series. Dropped in two places: node-exporter flags for `node_network_*`, the vmagent
+  list for cAdvisor's `container_network_*`.
+- **That drop moves panel values.** The Kubernetes Views network panels sum `container_network_*` with no
+  `interface` filter, so keeping only `eth0` takes them down to the real number.
+- **60s is the floor.** `dedup.minScrapeInterval` discards anything scraped faster. Check new scrapes.
+- **Postgres settings.** `lib/helm/pg-cluster` keeps only `cnpg_pg_settings_setting{name="max_connections"}`,
+  which the connection-saturation alert reads, and drops the rest of the per-setting config dump. Alerting on
+  another Postgres setting means widening that keep-list.
+- **Logs are not a storage problem**: ~5800 lines and 4.4MB a day against a 30Gi PVC, 75% of it the three
+  sample workloads. `rabbitmq-messaging-topology-operator` was ~55% before `logLevel: error`; that drops WARN
+  too, but failures still surface via CR status conditions, k8s events and the `rabbitmq-health` alerts. The
+  collector drops its own logs pre-read, via `excludeFilter` in `05_victoria_logs`.
+- **Envoy access logs show `_msg` as "missing _msg field"** and are fine. Envoy Gateway's default JSON access
+  log has no key the collector maps to `_msg`; the structured fields are all queryable (`response_code:500`).
+  Fixing it needs a `telemetry.accessLog` block on the EnvoyProxy CR, cosmetic only.
 
-Logs: the `rabbitmq-messaging-topology-operator` was about 55% of all cluster log volume, logging
-Start/declare/Finished at INFO per topology CR every `SYNC_PERIOD`. It runs at `logLevel: error`. That drops WARN
-too, but failures still surface via CR status conditions, k8s events, and the `rabbitmq-health` alerts. The
-collector also drops its own logs pre-read, via `excludeFilter` in `05_victoria_logs`.
+### Loud lines nothing can drop
+
+`excludeFilter` matches container METADATA (namespace, pod, container, labels) and runs BEFORE the log file is
+opened, so it cannot match message text. Nothing else in the vlagent/VictoriaLogs ingest path drops a line by
+content either (`ignoreFields` drops fields, not lines). So these three stay, about 6000 lines and 1.5MB a day:
+
+| Pattern | Volume | What it is |
+|---|---|---|
+| kube-apiserver `grpc: addrConn.createTransport failed to connect to 127.0.0.1:2379` | 4300/d | the etcd health probe closing a connection mid-dial, once a minute per apiserver. Confirm with `talosctl etcd members` and service health before believing it means anything |
+| longhorn-manager `Warning: v1 Endpoints is deprecated in v1.33+` | 1150/d | client-go warning on Longhorn's own API calls, gone when upstream migrates |
+| argocd `DiffFromCache error: ... cache: key is missing` | 200/d | Argo logs the cache miss at ERROR, then just does a full diff |
+
+None carries a `level` field, so none reaches the `high-error-log-rate` alert, which counts `level:error` and
+`level=error` only. Ignore them when browsing vlogs, and do not widen that alert's NOT-list for them.
 
 ### Pinned versions
 
