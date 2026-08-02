@@ -8,8 +8,8 @@
 # or anything it points at: the creds live and are backed up outside the repo.
 /secrets
 
-# Build scratch + output for the step-03 image build (03a writes, 03b reads): talos-builder checkouts,
-# kernel tarball, staged image. Can grow to >100 GB; never commit it.
+# Downloaded Talos image releases (03b caches one .raw.xz + its decompressed copy per release tag) and other
+# scratch. A few hundred MB per release; never commit it.
 /.cache/
 
 # Vendored Helm dependency blobs. `helm dependency build` pulls each chart's deps into its own charts/ dir;

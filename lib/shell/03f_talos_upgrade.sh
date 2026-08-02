@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Rolling, in-place upgrade of the running Talos cluster to the installer image 03a published to GHCR.
+# Rolling, in-place upgrade of the running Talos cluster to the installer image of the release pinned by
+# TALOS_IMAGE_RELEASE in versions.env (built by github.com/yama6a/talos-raspberry-pi5).
 # No reflash: Talos upgrades are atomic A/B with rollback, and talosctl refuses to proceed if a reboot would
 # break etcd quorum.
 # We CORDON + DRAIN each node ourselves before `talosctl upgrade`, so Talos's own in-upgrade drain finds an

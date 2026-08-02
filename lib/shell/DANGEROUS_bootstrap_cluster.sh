@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-shot orchestrator for a FIRST-TIME cluster init. Assumes freshly-flashed nodes (03a/03b done) sitting
+# One-shot orchestrator for a FIRST-TIME cluster init. Assumes freshly-flashed nodes (03b done) sitting
 # in MAINTENANCE mode, and takes them to a fully delivered cluster. One confirmation up front,
 # non-interactive after that. To re-initialize a RUNNING cluster use DANGEROUS_rebuild_cluster.sh instead.
 #
@@ -73,7 +73,7 @@ This will BOOTSTRAP a FIRST-TIME Talos cluster on freshly-flashed nodes:
   flow    : preflight -> 03c verify -> archive -> 03d -> 03e -> 04 -> 07_gateway -> commit/push -> 05 (ArgoCD)
             -> re-seal SSO -> commit/push -> converge -> seed ntfy -> back up the new key -> verify ingress
 
-Requires nodes in MAINTENANCE mode (03a/03b done; 03c boot-verify is run for you below). To re-initialize
+Requires nodes in MAINTENANCE mode (03b done; 03c boot-verify is run for you below). To re-initialize
 a RUNNING cluster instead, abort and use DANGEROUS_rebuild_cluster.sh (it wipes first).
 EOF
 read -r -p ">> type BOOTSTRAP to proceed: " ans

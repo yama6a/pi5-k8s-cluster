@@ -27,12 +27,8 @@ reset-cluster: ## DANGER: wipe all nodes (STATE + EPHEMERAL + Longhorn) back to 
 build-eeprom-card: ## 02: build a reusable SD card that flashes the Pi 5 EEPROM (boot order / PCIe probe).
 	bash lib/shell/02_raspi_eeprom.sh
 
-.PHONY: build-talos-image
-build-talos-image: ## 03a: build (and optionally publish) the custom Pi 5 Talos installer image.
-	bash lib/shell/03a_talos_image_builder.sh
-
 .PHONY: flash-talos-nvme
-flash-talos-nvme: ## 03b: write the built Talos image to an NVMe SSD over USB (once per drive).
+flash-talos-nvme: ## 03b: download the pinned Talos Pi 5 image release and write it to an NVMe SSD over USB.
 	bash lib/shell/03b_talos_image_flasher.sh
 
 .PHONY: verify-talos-boot

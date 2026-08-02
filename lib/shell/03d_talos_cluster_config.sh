@@ -48,8 +48,8 @@ for i in "${!IPS[@]}"; do echo "  ${HOSTNAMES[$i]}  ->  ${IPS[$i]}"; done
 echo "Output:   ${OUTDIR}"
 
 # Bakes a machine.registries auth into the CP patch, so the kubelet authenticates EVERY pull from GHCR on
-# every node, with no per-namespace imagePullSecrets. It is the read:packages PULL token, NOT the
-# write:packages one 03a uses, so a compromised node cannot push. It lands only in the gitignored
+# every node, with no per-namespace imagePullSecrets. It is a read:packages PULL token for YOUR private
+# images; the Talos image package is public and needs none. It lands only in the gitignored
 # secrets dir, never in git. Empty means no auth block, which is fine if every image is public.
 # GitHub Packages only authenticates with a CLASSIC token.
 echo

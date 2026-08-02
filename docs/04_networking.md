@@ -42,7 +42,7 @@ Decisions:
 
 ## What `04_cilium.sh` does
 
-Native `helm` + `kubectl`, erroring out if either is missing, unlike the dockerized 03a-03e scripts. Talks to the
+Native `helm` + `kubectl`, erroring out if either is missing, unlike the dockerized 03b-03e scripts. Talks to the
 cluster via `secrets/kubeconfig` (written by 03d). Idempotent.
 
 1. `helm dependency build argo_apps/platform/charts/00_cilium` pulls the pinned `cilium/cilium` subchart into

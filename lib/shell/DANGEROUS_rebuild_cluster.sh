@@ -24,7 +24,7 @@
 # about-to-be-wiped cluster's key. Back up DELIBERATELY beforehand so step 7 has something to restore. With
 # no backup, step 7 fails cleanly and you re-seal instead.
 #
-# Skips 03a/03b/03c: a reset keeps BOOT/EFI/META, so the OS is already on the NVMe and 03d waits for
+# Skips 03b/03c: a reset keeps BOOT/EFI/META, so the OS is already on the NVMe and 03d waits for
 # maintenance itself. Steps 0-6 abort on the first failure; 7 onwards are best-effort.
 #
 # Needs Docker (host networking), git, kubectl.

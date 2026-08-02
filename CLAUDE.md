@@ -20,9 +20,9 @@ a glance.
 | `.env` | gitignored. Your per-deployment config + secrets, in two blocks: CONFIG then SECRETS. `.env.example` is the committed template |
 | `docs/images/` | hardware photos embedded by `docs/01_hardware.md` |
 | `secrets/` | the cluster-credential dir (`talosconfig`, `kubeconfig`, sealed-secrets key), written by `03d`. A symlink to an off-repo store, gitignored, never committed |
-| `.cache/` | build scratch and output for the step-03 image build, plus `storage-bench/<UTC>/` benchmark output. Gitignored, can exceed 100 GB. The build half is keyed by the pinned build inputs (`BUILD_KEY`) so a version bump lands in a fresh `.cache/<key>/` |
+| `.cache/` | scratch. `03b` caches the downloaded Talos image release under `images/<release>/`, `storage_bench.sh` writes `storage-bench/<UTC>/`. Gitignored |
 
-Run the steps in order: `02_raspi_eeprom`, then `03a` to `03g`, then `04_cilium`, `05_argocd`, and onward. Either
+Run the steps in order: `02_raspi_eeprom`, then `03b` to `03g`, then `04_cilium`, `05_argocd`, and onward. Either
 by hand (`bash lib/shell/NN_name.sh`) or via the Makefile. Multi-phase step 03 uses letter sub-phases.
 
 `docs/*.md` holds the why; the scripts stay thin. A decision or trade-off goes in the step's `docs/*.md`, not in a
@@ -165,7 +165,7 @@ Every step script follows the same shape. Match it when you add one:
   together. Scripts take no `${VAR:-default}` env-overridable knobs; to change a value, edit it.
 - `set -uo pipefail` baseline, deliberately NOT `-e` in the PASS/FAIL scripts, so checks accumulate failures and
   report a full summary rather than aborting on the first. One-shot scripts that should abort early use `-euo`.
-- Native vs dockerized tooling: talos and image work (`03a` to `03e`) runs its tooling in Docker; cluster-apply
+- Native vs dockerized tooling: talos work (`03c` to `03e`) runs its tooling in Docker; cluster-apply
   scripts use native `helm` and `kubectl` and hard-fail if either is missing. Rule of thumb: Talos or image work
   goes in Docker, apply-to-cluster goes native.
 - A `DANGEROUS_` prefix on anything that wipes or resets state, so it cannot be run by reflex.
@@ -199,7 +199,8 @@ Sourced near the top of every script (`source "${SCRIPT_DIR}/common.sh"`; every 
 - Self-locates the repo root, loads the committed `versions.env` then the gitignored `.env`, dying with a `cp
   .env.example .env` hint if `.env` is missing.
 - Derives the values that cannot live in a flat file: the `CLUSTER_NODES[]` array plus the `NODES` IP list,
-  `IFACE`, `INSTALL_DISK`, the `*_VERSION` aliases, and the `BUILD_KEY`/`BUILD_DIR`/`OUT_DIR` build-cache paths.
+  `IFACE`, `INSTALL_DISK`, `TALOS_VERSION` (from `TALOS_IMAGE_RELEASE`) and the `*_VERSION` aliases, plus
+  `INSTALLER_REF` and the `IMAGE_CACHE` download path.
 - Defines the fixed cluster-identifier constants.
 - Provides the `say`/`die`/`warn` plus `ok`/`bad`/`summary` output helpers; `require <tools...>` (preflight, dies
   with an install hint); `CLUSTER_DIR` plus `use_kubeconfig` and `assert_api`; a dockerized `talosctl()`;

@@ -112,7 +112,7 @@ its own via unbounded retry.
 flowchart LR
     subgraph imp["Shell bootstrap - make"]
         direction TB
-        HW["Hardware + EEPROM<br/>docs 01-02"] --> IMG["Build + flash custom<br/>Talos Pi 5 image, 03a-03c"]
+        HW["Hardware + EEPROM<br/>docs 01-02"] --> IMG["Flash the Talos Pi 5<br/>image release, 03b-03c"]
         IMG --> TAL["Talos machine config<br/>+ etcd + NIC hardening, 03d-03e"]
         TAL --> CIL["Cilium CNI, 04"]
         CIL --> ARGO["Argo CD, 05"]
@@ -161,7 +161,6 @@ POSIX-y environment.
 On your machine:
 
 - `docker` (with host networking), `git`, `kubectl`, `helm`, `yq`, `kubeseal`
-- building the Talos image (03a) also needs `go`, `zstd`, `xz`, `jq`, `curl`
 - no native `talosctl` needed: it runs dockerized via `make talosctl`, because the macOS build is unreliable
   however you install it
 
@@ -178,19 +177,16 @@ make build-eeprom-card              # 02 - write the EEPROM boot config to a mic
 # 1. Configure - versions.env is committed; copy the config+secrets template
 cp .env.example .env                # then edit: node IPs, domains, secrets. Go over everything, to be sure.
 
-# 2. Build the custom Talos image
-make build-talos-image              # 03a - build (+ optionally publish) a Talos image w/ custom kernel + extensions
+# 2. Flash the NVMe drives: connect each NVMe to your laptop (e.g. via a USB adapter) and run, per drive:
+make flash-talos-nvme               # 03b - download the pinned Talos Pi 5 image release and write it (repeat per drive)
 
-# 3. Flash the NVMe drives: connect each NVMe to your laptop (e.g. via a USB adapter) and run, per drive:
-make flash-talos-nvme               # 03b - write to each NVMe (repeat per drive)
-
-# 4. Verify the nodes boot into Talos maintenance mode
+# 3. Verify the nodes boot into Talos maintenance mode
 make verify-talos-boot              # 03c - confirm each node boots into maintenance mode
 
-# 5. Bootstrap the cluster
+# 4. Bootstrap the cluster
 make bootstrap-cluster              # config + etcd + Cilium + Argo CD + seed secrets
 
-# 6. Verify
+# 5. Verify
 make check-health                   # Talos cluster health
 eval "$(make print-kubeconfig)"     # point kubectl at the cluster
 kubectl get applications -n argocd  # watch Argo CD deliver the platform, then workloads
