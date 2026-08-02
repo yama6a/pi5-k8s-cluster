@@ -202,8 +202,13 @@ Sourced near the top of every script (`source "${SCRIPT_DIR}/common.sh"`; every 
   `IFACE`, `INSTALL_DISK`, the `*_VERSION` aliases, and the `BUILD_KEY`/`BUILD_DIR`/`OUT_DIR` build-cache paths.
 - Defines the fixed cluster-identifier constants.
 - Provides the `say`/`die`/`warn` plus `ok`/`bad`/`summary` output helpers; `require <tools...>` (preflight, dies
-  with an install hint); `CLUSTER_DIR` plus `use_kubeconfig` and `assert_api`; a dockerized `talosctl()`; and
-  `seal_secret <name> <ns> <key> <value> <out>`.
+  with an install hint); `CLUSTER_DIR` plus `use_kubeconfig` and `assert_api`; a dockerized `talosctl()`;
+  `seal_secret <name> <ns> <key> <value> <out>`; and `ys_set`/`ys_set_list`, the line-surgical values writers.
+
+Never write a tracked YAML file with `yq -i`. It rewrites the whole document and drops the blank line before a
+comment block, so even a no-op write leaves the file dirty, which aborts the rebuild at `05_argocd`'s
+uncommitted-changes gate. Use `ys_set <file> <value> <key...>` (or `ys_set_list` for a block sequence of
+scalars) and assert the result with a `yq -r` read-back. `yq` is still the right tool for reads.
 
 It never sets shell options; each script keeps its own `set` line.
 
