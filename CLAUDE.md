@@ -13,13 +13,14 @@ a glance.
 | `lib/shell/` | every bootstrap script (`NN_name.sh`, plus the `DANGEROUS_*` orchestrators) and the shared `common.sh` |
 | `docs/` | the narrative and decision record per step (`NN_name.md`) |
 | `lib/helm/` | shared charts consumed as a dependency by other charts. See "Shared charts" |
+| `lib/bench/` | static payloads for `lib/shell/storage_bench.sh`: the fio job files and the pgbench percentile awk. Mirrors `lib/krr/` |
 | `argo_apps/` | everything ArgoCD delivers, the two-tree GitOps root. See "ArgoCD apps" |
 | `Makefile` | a thin dispatcher over `lib/shell/` plus the orchestrators. `make help` lists every target |
 | `versions.env` | committed. The shared, renovate-managed version recipe: upstream versions + digest pins |
 | `.env` | gitignored. Your per-deployment config + secrets, in two blocks: CONFIG then SECRETS. `.env.example` is the committed template |
 | `docs/images/` | hardware photos embedded by `docs/01_hardware.md` |
 | `secrets/` | the cluster-credential dir (`talosconfig`, `kubeconfig`, sealed-secrets key), written by `03d`. A symlink to an off-repo store, gitignored, never committed |
-| `.cache/` | build scratch and output for the step-03 image build. Gitignored, can exceed 100 GB. Keyed by the pinned build inputs (`BUILD_KEY`) so a version bump lands in a fresh `.cache/<key>/` |
+| `.cache/` | build scratch and output for the step-03 image build, plus `storage-bench/<UTC>/` benchmark output. Gitignored, can exceed 100 GB. The build half is keyed by the pinned build inputs (`BUILD_KEY`) so a version bump lands in a fresh `.cache/<key>/` |
 
 Run the steps in order: `02_raspi_eeprom`, then `03a` to `03g`, then `04_cilium`, `05_argocd`, and onward. Either
 by hand (`bash lib/shell/NN_name.sh`) or via the Makefile. Multi-phase step 03 uses letter sub-phases.
