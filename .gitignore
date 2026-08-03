@@ -2,6 +2,8 @@
 # git. Copy the committed template and edit:  cp .env.example .env  (the version recipe is the COMMITTED
 # versions.env is deliberately NOT ignored; only bare `.env` is, so `.env.example`/`versions.env` are tracked.)
 .env
+.env.bak
+.env.bak.*
 
 # Live cluster credentials (talosconfig, kubeconfig, secrets.yaml, sealed-secrets master key), written by
 # 03c into `secrets/`, which is a symlink to an off-repo store (a synced drive). Never commit the symlink
