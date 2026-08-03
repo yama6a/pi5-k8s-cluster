@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Downloads the pinned Pi 5 Talos image release and writes it to an NVMe SSD over a USB adapter. Once per
 # drive. With no SD card inserted the Pi then boots Talos from this NVMe straight into maintenance mode;
-# cluster config is applied later by 03d.
+# cluster config is applied later by 03c.
 # The image is built by github.com/yama6a/talos-raspberry-pi5; TALOS_IMAGE_RELEASE in versions.env pins which
 # release. To flash a different one, bump that pin.
 #

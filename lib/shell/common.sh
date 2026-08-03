@@ -32,7 +32,7 @@ source "$ENV_FILE"
 
 # Scripts run under `set -u`, so default every key here: an older .env missing one must not trip it.
 # Empty means "skip the feature it enables", see each key's comment in .env.example.
-: "${GITHUB_GHCR_PULL_TOKEN_SECRET:=}"    # 03d bakes into node machine config (kubelet pulls private ghcr.io)
+: "${GITHUB_GHCR_PULL_TOKEN_SECRET:=}"    # 03c bakes into node machine config (kubelet pulls private ghcr.io)
 : "${ARGOCD_GITHUB_PAT_SECRET:=}"         # 05 seeds ArgoCD's repo-creds Secret
 : "${NTFY_PHONE_PASSWORD_SECRET:=}"       # 10 seeds the ntfy 'phone' user (Grafana pushes alerts to ntfy, phone subscribes)
 : "${GOOGLE_SSO_CLIENT_ID:=}"      # 07 writes into the google-sso values
@@ -70,8 +70,8 @@ INSTALL_DISK="/dev/"
 # The image release tag is `<talos version>-<build revision>`; everything Talos-side wants just the version.
 TALOS_VERSION="${TALOS_IMAGE_RELEASE%-*}"
 TALOSCTL_VERSION="${TALOS_VERSION}"             # talosctl container (talosctl() below; boot-verify)
-INSTALLER_REF="${TALOS_IMAGE_REPO}:${TALOS_IMAGE_RELEASE}"   # exact installer image 03f upgrades nodes to
-IMAGE_CACHE="${REPO_ROOT}/.cache/images"        # 03b downloads the release's raw image here (gitignored)
+INSTALLER_REF="${TALOS_IMAGE_REPO}:${TALOS_IMAGE_RELEASE}"   # exact installer image 03e upgrades nodes to
+IMAGE_CACHE="${REPO_ROOT}/.cache/images"        # 03a downloads the release's raw image here (gitignored)
 
 say()  { printf '\n\033[1;36m>> %s\033[0m\n' "$*"; }
 die()  { printf '\033[1;31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
@@ -216,8 +216,8 @@ vy_protect_off() {
 CLUSTER_DIR="${REPO_ROOT}/secrets"   # the only real talosconfig + kubeconfig; a symlink to an off-repo store
 
 use_kubeconfig() {
-  export KUBECONFIG="${CLUSTER_DIR}/kubeconfig"   # the 03d kubeconfig (points at the VIP)
-  [ -f "$KUBECONFIG" ] || die "missing ${KUBECONFIG}, run step 03 (03d) first"
+  export KUBECONFIG="${CLUSTER_DIR}/kubeconfig"   # the 03c kubeconfig (points at the VIP)
+  [ -f "$KUBECONFIG" ] || die "missing ${KUBECONFIG}, run step 03 (03c) first"
 }
 assert_api() { kubectl get nodes >/dev/null 2>&1 || die "kubectl can't reach the API via ${KUBECONFIG}"; }
 

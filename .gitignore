@@ -4,11 +4,11 @@
 .env
 
 # Live cluster credentials (talosconfig, kubeconfig, secrets.yaml, sealed-secrets master key), written by
-# 03d into `secrets/`, which is a symlink to an off-repo store (a synced drive). Never commit the symlink
+# 03c into `secrets/`, which is a symlink to an off-repo store (a synced drive). Never commit the symlink
 # or anything it points at: the creds live and are backed up outside the repo.
 /secrets
 
-# Downloaded Talos image releases (03b caches one .raw.xz + its decompressed copy per release tag) and other
+# Downloaded Talos image releases (03a caches one .raw.xz + its decompressed copy per release tag) and other
 # scratch. A few hundred MB per release; never commit it.
 /.cache/
 

@@ -112,8 +112,8 @@ its own via unbounded retry.
 flowchart LR
     subgraph imp["Shell bootstrap - make"]
         direction TB
-        HW["Hardware + EEPROM<br/>docs 01-02"] --> IMG["Flash the Talos Pi 5<br/>image release, 03b-03c"]
-        IMG --> TAL["Talos machine config<br/>+ etcd + NIC hardening, 03d-03e"]
+        HW["Hardware + EEPROM<br/>docs 01-02"] --> IMG["Flash the Talos Pi 5<br/>image release, 03a-03b"]
+        IMG --> TAL["Talos machine config<br/>+ etcd + NIC hardening, 03c-03d"]
         TAL --> CIL["Cilium CNI, 04"]
         CIL --> ARGO["Argo CD, 05"]
     end
@@ -178,10 +178,10 @@ make build-eeprom-card              # 02 - write the EEPROM boot config to a mic
 cp .env.example .env                # then edit: node IPs, domains, secrets. Go over everything, to be sure.
 
 # 2. Flash the NVMe drives: connect each NVMe to your laptop (e.g. via a USB adapter) and run, per drive:
-make flash-talos-nvme               # 03b - download the pinned Talos Pi 5 image release and write it (repeat per drive)
+make flash-talos-nvme               # 03a - download the pinned Talos Pi 5 image release and write it (repeat per drive)
 
 # 3. Verify the nodes boot into Talos maintenance mode
-make verify-talos-boot              # 03c - confirm each node boots into maintenance mode
+make verify-talos-boot              # 03b - confirm each node boots into maintenance mode
 
 # 4. Bootstrap the cluster
 make bootstrap-cluster              # config + etcd + Cilium + Argo CD + seed secrets
@@ -224,8 +224,8 @@ Hardware caveats before you commit:
 
 | Task                      | Command                                                                          | Notes                                                                                                               |
 |---------------------------|----------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------|
-| Upgrade Talos             | `make upgrade-talos`                                                             | Rolling A/B in-place to the pinned installer (03f) (bump `TALOS_VERSION` in `versions.env`)                         |
-| Upgrade Kubernetes        | `make upgrade-k8s`                                                               | Rolling, no reboot (03g). (Bump `KUBERNETES_VERSION` in `versions.env`)                                             |
+| Upgrade Talos             | `make upgrade-talos`                                                             | Rolling A/B in-place to the pinned installer (03e) (bump `TALOS_VERSION` in `versions.env`)                         |
+| Upgrade Kubernetes        | `make upgrade-k8s`                                                               | Rolling, no reboot (03f). (Bump `KUBERNETES_VERSION` in `versions.env`)                                             |
 | Restore a datastore       | `make restore-cnpg`, `restore-redis`, `restore-longhorn`, `restore-vm`            | From the off-cluster S3 backups ([docs/13](docs/13_backups.md)).                                                     |
 | Recover a lost node       | `make recover-node NODE=pi-cp3`                                                  | Rejoins one wiped/replaced node and fixes etcd, the local-path PVCs and Longhorn's disk record ([docs/15](docs/15_node_recovery.md)). |
 | Rightsize requests        | `make krr`                                                                       | Prints current requests next to what usage history suggests. Read-only; you hand-edit the chart values.             |
@@ -244,7 +244,7 @@ Hardware caveats before you commit:
   stateful CR removed from a live app is kept, not pruned ([docs/13](docs/13_backups.md)).
 - **LoadBalancer IP stuck `<pending>`**: the Cilium LB pool must be on the nodes' L2, avoiding the DHCP range
   and the VIP ([docs/04](docs/04_networking.md)).
-- **Intermittent NIC drops on a Pi 5**: the `macb` wedge, handled by NIC hardening (03e) plus the `nic-keeper`
+- **Intermittent NIC drops on a Pi 5**: the `macb` wedge, handled by NIC hardening (03d) plus the `nic-keeper`
   DaemonSet ([docs/03](docs/03_operating_system.md)).
 
 ## Documentation

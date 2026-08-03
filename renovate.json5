@@ -98,7 +98,7 @@
       // WARNING: a merged bump reaches the LIVE cluster unattended via ArgoCD self-heal, including Cilium,
       // which can cut the cluster off its own network, and any local-path tag bump, which really needs a
       // manual re-vendor. It also bumps TALOS_IMAGE_RELEASE, which a merge does NOT apply: that still needs
-      // 03f (and 03b for a reflash). Accepted for a hands-off homelab; to de-risk, add minimumReleaseAge or
+      // 03e (and 03a for a reflash). Accepted for a hands-off homelab; to de-risk, add minimumReleaseAge or
       // drop automerge from the deps you want to gate.
       description: "combine all non-major updates into one auto-merged PR",
       matchUpdateTypes: ["minor", "patch", "digest", "pin", "lockFileMaintenance"],

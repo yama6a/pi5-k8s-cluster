@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Brings up the Talos control-plane cluster from NVMes already flashed (03b) and booted into maintenance at
+# Brings up the Talos control-plane cluster from NVMes already flashed (03a) and booted into maintenance at
 # their router-reserved IPs. Generated configs land in secrets/, which the talosctl container mounts as
 # /work so every call sees the same files.
 #
@@ -192,7 +192,7 @@ cat "${TALOS_SCRATCH}/volumes.yaml" >> "${TALOS_SCRATCH}/cp.yaml"
 #     yet. A maintenance node answers --insecure; a CONFIGURED one does not (and a freshly-reset node
 #     can't boot configured, STATE is wiped), so this check is never fooled by the pre-reset instance:
 #     it blocks until the node is genuinely back in maintenance. nc gates the call so we don't hang on a
-#     node mid-reboot. On a first install (straight off 03b) the nodes are already in maintenance, so
+#     node mid-reboot. On a first install (straight off 03a) the nodes are already in maintenance, so
 #     this returns immediately.
 say "waiting for nodes in maintenance (up to 5 min each)..."
 for i in "${TARGETS[@]}"; do
