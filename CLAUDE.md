@@ -166,8 +166,8 @@ Every step script follows the same shape. Match it when you add one:
 - `set -uo pipefail` baseline, deliberately NOT `-e` in the PASS/FAIL scripts, so checks accumulate failures and
   report a full summary rather than aborting on the first. One-shot scripts that should abort early use `-euo`.
 - Native vs dockerized tooling: talos work (`03b` to `03d`) runs its tooling in Docker; cluster-apply
-  scripts use native `helm` and `kubectl` and hard-fail if either is missing. Rule of thumb: Talos or image work
-  goes in Docker, apply-to-cluster goes native.
+  scripts use native `helm` and `kubectl` and hard-fail if either is missing. Rule of thumb: Talos work goes in
+  Docker, apply-to-cluster goes native. `03a` is neither, just `curl` + `dd`.
 - A `DANGEROUS_` prefix on anything that wipes or resets state, so it cannot be run by reflex.
 
 ### Where a value lives
@@ -179,7 +179,7 @@ Helpers and values each live in exactly one place.
 | Versions and digest pins | `versions.env`, committed |
 | Per-deployment scalars (node topology, domains) and all secrets | `.env`, gitignored. Template: `.env.example` |
 | Fixed identifiers that are not per-deployment config (namespaces, operator names, the Pi 5 NIC and disk, the Talos API port) | constants in `lib/shell/common.sh` |
-| Build-machinery internals used by one script (registry and builder names, the gmake path, the staged-image filename, a step's own check expectations) | that script |
+| Internals used by one script (its own check expectations, asset filenames, tool refs it alone runs) | that script |
 
 Secrets live in `.env` and are read from it, never prompted at runtime. `common.sh` defaults each to empty so an
 older `.env` missing a key does not trip `set -u`. Leaving a secret empty skips the feature it enables; each

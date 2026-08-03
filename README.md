@@ -36,8 +36,9 @@
 ## Overview
 
 - Three Raspberry Pi 5s, every node a control-plane node: HA etcd, workloads co-located.
-- Booting Talos off NVMe. Talos ships no official Pi 5 image, so this repo builds its own: a custom installer
-  with a Raspberry Pi kernel at 4K pages (Longhorn and XFS need that), plus the extensions the cluster needs.
+- Booting Talos off NVMe. Talos ships no official Pi 5 image, so this one flashes a release of
+  [yama6a/talos-raspberry-pi5](https://github.com/yama6a/talos-raspberry-pi5): a Raspberry Pi kernel at 4K pages
+  (Longhorn and XFS need that), plus the extensions the cluster needs.
 - The shell steps do only what must exist before GitOps: flash Talos onto the NVMe, bootstrap etcd, install the
   Cilium CNI, install Argo CD.
 - Everything after that is GitOps. Argo CD reconciles `argo_apps/` and delivers the platform (ingress, TLS, SSO,
@@ -255,7 +256,7 @@ Each doc holds the why behind a step, with verification commands:
 |----------------------------------------------------|---------------------------------------------------------------------------------|
 | [01_hardware](docs/01_hardware.md)                 | Bill of materials + the reasoning behind every part.                            |
 | [02_raspi_eeprom](docs/02_raspi_eeprom.md)         | Flashing a common Pi 5 EEPROM boot config.                                      |
-| [03_operating_system](docs/03_operating_system.md) | Talos: OS choice, the custom Pi 5 image build, cluster bring-up, NIC hardening. |
+| [03_operating_system](docs/03_operating_system.md) | Talos: OS choice, where the Pi 5 image comes from, cluster bring-up, NIC hardening. |
 | [04_networking](docs/04_networking.md)             | Cilium as CNI + LoadBalancer + WireGuard (the last imperative infra).           |
 | [05_gitops](docs/05_gitops.md)                     | Argo CD, the two-tree app-of-apps, sync-wave convention.                        |
 | [06_secrets](docs/06_secrets.md)                   | Sealed Secrets + the master-key custody you can't lose.                         |
@@ -277,8 +278,9 @@ Built on the work of the Talos/[Sidero](https://www.talos.dev/), [Cilium](https:
 [Argo CD](https://argo-cd.readthedocs.io/), [cert-manager](https://cert-manager.io/),
 [Envoy Gateway](https://gateway.envoyproxy.io/), [Sealed Secrets](https://github.com/bitnami-labs/sealed-secrets),
 [Longhorn](https://longhorn.io/), [CloudNativePG](https://cloudnative-pg.io/),
-[VictoriaMetrics](https://victoriametrics.com/) and [Grafana](https://grafana.com/) communities. The custom
-Pi 5 Talos image builds on [talos-rpi5/talos-builder](https://github.com/talos-rpi5)
+[VictoriaMetrics](https://victoriametrics.com/) and [Grafana](https://grafana.com/) communities. The Pi 5 Talos
+image comes from [yama6a/talos-raspberry-pi5](https://github.com/yama6a/talos-raspberry-pi5), which credits its
+own upstreams.
 
 ## License
 

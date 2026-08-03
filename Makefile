@@ -22,7 +22,7 @@ rebuild-cluster: ## DANGER: wipe a RUNNING cluster and rebuild end-to-end (resto
 reset-cluster: ## DANGER: wipe all nodes (STATE + EPHEMERAL + Longhorn) back to maintenance.
 	bash lib/shell/DANGEROUS_reset_talos_cluster.sh
 
-##@ Node image & Talos bring-up  (step 02-03; image work runs in Docker)
+##@ Node image & Talos bring-up  (step 02-03; the talos steps run their tooling in Docker)
 .PHONY: build-eeprom-card
 build-eeprom-card: ## 02: build a reusable SD card that flashes the Pi 5 EEPROM (boot order / PCIe probe).
 	bash lib/shell/02_raspi_eeprom.sh
