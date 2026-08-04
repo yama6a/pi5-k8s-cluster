@@ -110,7 +110,7 @@ shortest comment that leaves them able to DO something. Anything past that is de
 ### Earns a comment (about the only cases)
 
 - An outside constraint that explains a weird construction: `RE2 has no negative lookahead, so stamp then drop`.
-- A value that looks wrong, dummy or arbitrary: `size: 45Gi # NO-OP under local-path, but the CR requires it`.
+- A value that looks wrong, dummy or arbitrary: `size: 10Gi # a CEILING, thin volume, so it reserves nothing`.
 - A footgun for whoever edits THAT line next: `# PDB on a single instance would block node upgrades`.
 - A non-default picked over the upstream default, phrased as the CURRENT reason: `# default was zone, we have none`.
 - A coupling invisible from here: another chart, the script that writes this file, an operator-injected label.
@@ -263,7 +263,7 @@ values, no lock, no tgz.
 | Chart | Renders | Consumer's interface |
 |---|---|---|
 | `ingress` | the ingress edge: per host a Gateway, HTTPRoute and ReferenceGrant, plus one multi-SAN Certificate per ingress | just `ingresses[]` in values. Per-ingress the only cert knob is `issuer` |
-| `pg-cluster` | the CNPG `Cluster`, `PodMonitor`, a default-deny CNP pair, and when backups are on the Barman `ObjectStore` + `ScheduledBackup` | a flat set of REQUIRED knobs: `name`, `postgresVersion`, `highAvailability`, `resources`, `allowedClients`, `deletionProtection`. Plus optional `alertCritical` |
+| `pg-cluster` | the CNPG `Cluster`, `PodMonitor`, a default-deny CNP pair, and when backups are on the Barman `ObjectStore` + `ScheduledBackup` | a flat set of REQUIRED knobs: `name`, `postgresVersion`, `highAvailability`, `size`, `resources`, `allowedClients`, `deletionProtection`. Plus optional `alertCritical` |
 | `redis-instance` | one standalone `Redis` CR, its ServiceMonitor, and a default-deny CNP | REQUIRED: `name`, `redisVersion`, `resources`, `allowedClients`, `persistence`, `deletionProtection`. Plus optional `alertCritical` and a create-time `initialFixedDiskSize` |
 | `rabbitmq-topology` | one `User` with operator-GENERATED credentials, the Exchanges/Queues/Bindings it owns, a `<queue>.dlx`/`.dlq` pair per consumer queue, and ONE aggregated `Permission` | a `rabbitmq-topology:` values block |
 
@@ -275,9 +275,12 @@ Notes that matter when consuming them:
 - `ingress` renders NO SSO. Google-SSO is applied centrally per domain by `04_google_sso`, one SecurityPolicy per
   domain with per-host allowlists.
 - `pg-cluster` is Postgres only, no postgis. The image repo is fixed and only `postgresVersion`, the tag, varies,
-  owned per workload. `highAvailability` is one bool: true means 2 instances plus a PDB plus switchover, false
-  means a single instance with the PDB off and in-place restart. There is no separate
-  instances/enablePDB/primaryUpdateMethod knob.
+  owned per workload. `highAvailability` is one bool: true means 3 instances plus synchronous `any 1` `required`
+  plus a PDB plus switchover, false means a single instance with no sync, the PDB off and in-place restart. There
+  is no separate instances/synchronous/enablePDB/primaryUpdateMethod knob, because 3 instances and synchronous
+  replication are the same case: 1 instance has no standby to be synchronous with. 2 and >3 are out of scope.
+  `size` is the per-instance disk CEILING on `longhorn-r2-ephemeral`; thin, so it reserves nothing, but it does
+  spend that much of Longhorn's per-node scheduling budget.
 - `redis-instance` is a single standalone instance, no HA or replication. `persistence` is one bool: true means
   durable plus an S3 RDB backup, false means an ephemeral cache with no backup. Every PVC uses the one Longhorn
   class `longhorn-r2-ephemeral` shipped by `02_longhorn`; reclaim is not the prune guard, `deletionProtection` is.
@@ -335,7 +338,7 @@ Pick the lowest wave that sits after everything the app depends on.
 |------|-----|-----|
 | `0` | cilium, priorityclass, prometheus-operator-crds, vm-operator-crds | the CNI underpins all pod networking, plus the monitoring CRDs everything else's ServiceMonitors land on and the PriorityClasses later pods reference by name |
 | `1` | argocd, envoy-gateway, vm-operator | need the CNI. argocd adopts itself; envoy-gateway owns the Gateway API CRDs, before cert-manager, plus the `eg` class |
-| `2` | cert-manager, sealed-secrets, longhorn, local-path-provisioner, nic-keeper, cnpg-operator, metrics-server | independent leaves once the CNI and engine are in place |
+| `2` | cert-manager, sealed-secrets, longhorn, nic-keeper, dead-node-watcher, cnpg-operator, metrics-server | independent leaves once the CNI and engine are in place |
 | `3` | gateway, redis-operator, rabbitmq, barman-cloud-plugin, argocd-webhook-secret | the shared `:80` Gateway + ClusterIssuers need the `eg` class and cert-manager. redis-operator only needs the CNI, so wave 2 would do; it stays at 3 to avoid renumbering. The webhook secret needs sealed-secrets (wave 2) |
 | `4` | google-sso | one SecurityPolicy per domain with per-host allowlists, matched by `:authority`, that targetRefs the app routes plus the shared callback host, and the sealed OAuth secret |
 | `5` | grafana, victoria-logs, vm-k8s-stack, ntfy, orphan-exporter | the monitoring stack. Their UIs are exposed at wave 6 |
