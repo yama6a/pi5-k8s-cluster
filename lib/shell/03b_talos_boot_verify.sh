@@ -33,19 +33,18 @@ for host in "${ALL_HOSTS[@]}"; do
   echo ""
   echo "=============== ${host}  ${ip}  (${type}) ==============="
 
-  # 1. on the network
-  if ping -c1 -t10 "$ip" >/dev/null 2>&1; then
-    ok "reachable (ping)"
-  else
-    bad "not reachable (ping), skipping the rest for this node"
-    continue
-  fi
-
-  # 2. Talos API port open
+  # 1. Reachable. The Talos API is the verdict; ICMP is only context, because a Pi 5 in maintenance mode drops
+  #    sparse pings while TCP stays solid: EEE is still powering the PHY down between packets until 03d turns
+  #    it off, and 03d runs after 03c. Measured 20-40% single-packet loss on these NICs against 0% on the x86
+  #    node. So a lost ping must not skip the five real checks below, and must not fail the run.
+  #    Three packets rather than one for the same reason: one is a coin toss, not a measurement.
+  if ping -c3 -t10 "$ip" >/dev/null 2>&1; then icmp="ok"; else icmp="no reply"; fi
   if nc -z -G2 "$ip" "$API_PORT" >/dev/null 2>&1; then
-    ok "Talos API port ${API_PORT} open"
+    ok "reachable, Talos API port ${API_PORT} open (icmp: ${icmp})"
+    [ "$icmp" = "ok" ] || warn "${host} did not answer ICMP; harmless here, the API is what the bring-up needs"
   else
-    bad "Talos API port ${API_PORT} closed"
+    bad "unreachable: Talos API port ${API_PORT} closed (icmp: ${icmp}), skipping the rest for this node"
+    continue
   fi
 
   # 3. API responds (maintenance mode) and the image is the version versions.env pins. This is the check that
