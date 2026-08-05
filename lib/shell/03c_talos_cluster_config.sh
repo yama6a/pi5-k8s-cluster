@@ -130,6 +130,13 @@ if [ "${#WORKER_HOSTS[@]}" -gt 0 ]; then
   mv "${OUTDIR}/worker.yaml" "${TALOS_SCRATCH}/worker.yaml"
 fi
 
+# Point talosctl at the real CONTROL-PLANE ips (NOT the VIP) immediately, because `gen config` above just
+# rewrote talosconfig and a freshly generated one has NO endpoints. Doing it here rather than after the apply
+# means aborting anywhere below still leaves a usable talosconfig behind. A worker cannot proxy the Talos API,
+# so it is never an endpoint; `-n <worker-ip>` still reaches it through one of these.
+talosctl config endpoint "${CP_IPS[@]}"
+talosctl config node "${CP_IPS[0]}"
+
 # 2. Cluster-wide control-plane patch: VIP on the wired NIC, schedulable CP, certSANs.
 #    certSANs name the VIP and the CONTROL-PLANE ips only: a worker serves no apiserver.
 CERTSANS="$(printf '      - %s\n' "${VIP}" "${CP_IPS[@]}")"
@@ -334,11 +341,6 @@ done
 # The rendered scratch (cp.yaml + controlplane.yaml + cp-patch.yaml + volumes.yaml) has now been applied to
 # every node; the nodes hold their own live config from here on. It lives in ${TALOS_SCRATCH} (an OS temp
 # dir), so there's nothing to clean up: the OS reaps it, and it never sat next to the durable creds.
-
-# 6. Point talosctl at the real CONTROL-PLANE ips (NOT the VIP). A worker cannot proxy the Talos API, so it is
-#    never an endpoint; `-n <worker-ip>` still reaches it through one of these.
-talosctl config endpoint "${CP_IPS[@]}"
-talosctl config node "${CP_IPS[0]}"
 
 # 7. Wait for every node to reboot into its configured state before bootstrapping.
 #    apply-config (maintenance mode) reboots each node; it comes back serving the API

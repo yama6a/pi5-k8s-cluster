@@ -157,8 +157,10 @@ for host in "${HOSTS[@]}"; do
   fi
   # Gate on FULL cluster health (etcd quorum fully restored) before touching the next node. A false
   # negative just stops us early; re-running resumes (the upgraded node is then a no-op).
+  # Asked of a CONTROL-PLANE node, never of the node just upgraded: Talos answers this check only there
+  # ("cluster health check is only available on control plane nodes"), so aiming it at a worker always fails.
   say "waiting for cluster health before the next node"
-  talosctl -n "$ip" health --wait-timeout "${HEALTH_TIMEOUT}s" >/dev/null 2>&1 \
+  talosctl -n "${CP_IPS[0]}" health --wait-timeout "${HEALTH_TIMEOUT}s" >/dev/null 2>&1 \
     || die "cluster not healthy after upgrading ${ip}; stopping. Investigate, then re-run to resume."
 
   kubectl uncordon "$node" >/dev/null 2>&1 || true   # Talos uncordons on rejoin; make it explicit/idempotent

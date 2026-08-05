@@ -27,15 +27,17 @@ RESET_IPS=("${ALL_IPS[@]}")
 # prefixed with the node IP so the interleaved streams stay readable. That prefixing pipes through sed, and a
 # pipeline's exit code is sed's, not talosctl's, so PIPESTATUS[0] is how we still see whether talosctl failed.
 #
-# --system-labels-to-wipe takes partition labels resolved against each node's VolumeStatus, not a fixed set.
-# Wiping the two user volumes here is what guarantees no orphaned replica or DB data survives; 03c re-creates
-# those partitions on the next config apply.
-say "resetting ${#RESET_IPS[@]} nodes in parallel (STATE,EPHEMERAL,u-longhorn) -> maintenance"
+# Every label here must resolve to a live VolumeStatus, which means the machine config must still DECLARE that
+# volume: the reset looks each one up by ID and fails the whole call if one is missing. So a label for a volume
+# already dropped from the config belongs in `talosctl wipe disk <part> --drop-partition` instead, not here.
+# Since Talos 1.12 this both wipes AND drops the partition, so 03c re-provisions each from free space.
+WIPE_LABELS="STATE,EPHEMERAL,u-longhorn"
+say "resetting ${#RESET_IPS[@]} nodes in parallel (${WIPE_LABELS}) -> maintenance"
 pids=()
 for ip in "${RESET_IPS[@]}"; do
   (
     talosctl reset -e "$ip" -n "$ip" \
-      --system-labels-to-wipe STATE,EPHEMERAL,u-longhorn \
+      --system-labels-to-wipe "$WIPE_LABELS" \
       --reboot --graceful=false 2>&1 | sed "s/^/[$ip] /"
     exit "${PIPESTATUS[0]}"
   ) &
